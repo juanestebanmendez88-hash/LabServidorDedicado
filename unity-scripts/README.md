@@ -14,13 +14,13 @@ Están aquí aparte porque Unity Hub exige una carpeta vacía para crear el proy
 
 **1. Crear el proyecto.** Unity Hub → New project → plantilla **Universal 3D** → nombre `unity-client` → ubicación `LabServidorDedicado`.
 
-**2. Permitir el Input Manager antiguo.** `Edit → Project Settings → Player → Other Settings → Active Input Handling` = **Both**. Unity pide reiniciar.
+**2. Permitir HTTP.** `Edit → Project Settings → Player → Other Settings → Allow downloads over HTTP` = **Always allowed**. Sin esto Unity bloquea todas las peticiones y nada funciona.
 
-**3. Permitir HTTP.** En la misma pantalla, `Allow downloads over HTTP` = **Always allowed**. Sin esto Unity bloquea todas las peticiones.
+No hace falta tocar *Active Input Handling*: los scripts usan el Input System nuevo, que es el que trae la plantilla.
 
-**4. Copiar los scripts** a `Assets/Scripts/`.
+**3. Copiar los scripts** a `Assets/Scripts/`.
 
-**5. Armar la escena** (menú `GameObject`):
+**4. Armar la escena** (menú `GameObject`):
 
 | Objeto | Cómo se crea | Ajustes |
 |---|---|---|
@@ -29,13 +29,13 @@ Están aquí aparte porque Unity Hub exige una carpeta vacía para crear el proy
 | `RemotePlayer` | `3D Object → Capsule` | Position X = 2, Y = 1, material rojo |
 | `NetworkManager` | `Create Empty` | lleva los dos scripts de red |
 
-**6. Asignar los componentes.**
+**5. Asignar los componentes.**
 
 En **LocalPlayer**: `Add Component → Player Controller`.
 
 En **NetworkManager**: `Add Component → Position Sync Client` y `Add Component → Experiment Runner`.
 
-**7. Llenar el Inspector de NetworkManager.**
+**6. Llenar el Inspector de NetworkManager.**
 
 En *Position Sync Client*:
 
@@ -53,7 +53,7 @@ Los identificadores van **cruzados**: lo que para una instancia es local, para l
 
 En *Experiment Runner*, arrastrar el propio **NetworkManager** al campo `Client`.
 
-**8. Guardar la escena** como `Assets/Scenes/Main.unity`.
+**7. Guardar la escena** como `Assets/Scenes/Main.unity`.
 
 ## Ejecutar las dos instancias
 

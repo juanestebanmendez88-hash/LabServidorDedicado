@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// Ejecuta los experimentos A y B de la Parte 1 y guarda los resultados en CSV.
@@ -46,9 +47,9 @@ public class ExperimentRunner : MonoBehaviour
     public int experimentFrameRate = 500;
 
     [Header("Teclas")]
-    public KeyCode keyExperimentA = KeyCode.F1;
-    public KeyCode keyEmitB = KeyCode.F2;
-    public KeyCode keyObserveB = KeyCode.F3;
+    public Key keyExperimentA = Key.F1;
+    public Key keyEmitB = Key.F2;
+    public Key keyObserveB = Key.F3;
 
     // Estado de la recoleccion
     readonly List<double> _rttSamples = new List<double>();
@@ -93,9 +94,12 @@ public class ExperimentRunner : MonoBehaviour
     {
         if (_busy) return;
 
-        if (Input.GetKeyDown(keyExperimentA)) StartCoroutine(RunExperimentA());
-        else if (Input.GetKeyDown(keyEmitB)) StartCoroutine(RunExperimentBEmitter());
-        else if (Input.GetKeyDown(keyObserveB)) StartCoroutine(RunExperimentBObserver());
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
+        if (kb[keyExperimentA].wasPressedThisFrame) StartCoroutine(RunExperimentA());
+        else if (kb[keyEmitB].wasPressedThisFrame) StartCoroutine(RunExperimentBEmitter());
+        else if (kb[keyObserveB].wasPressedThisFrame) StartCoroutine(RunExperimentBObserver());
     }
 
     // ---------- Experimento A ----------
