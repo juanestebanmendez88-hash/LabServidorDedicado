@@ -278,7 +278,22 @@ public class ExperimentRunner : MonoBehaviour
 
     void OnGUI()
     {
-        var style = new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true };
-        GUI.Label(new Rect(10, Screen.height - 60, Screen.width - 20, 50), _status, style);
+        int size = Mathf.Max(13, Mathf.RoundToInt(Screen.height * 0.024f));
+        float h = size * 3f;
+
+        var style = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = size,
+            wordWrap = true,
+            normal = { textColor = Color.yellow }
+        };
+
+        var box = new Rect(0, Screen.height - h, Screen.width, h);
+        GUI.color = new Color(0f, 0f, 0f, 0.6f);
+        GUI.DrawTexture(box, Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        GUI.Label(new Rect(size * 0.8f, Screen.height - h + size * 0.4f,
+                           Screen.width - size * 1.6f, h), _status, style);
     }
 }

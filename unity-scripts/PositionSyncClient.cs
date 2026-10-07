@@ -191,14 +191,35 @@ public class PositionSyncClient : MonoBehaviour
 
     void OnGUI()
     {
-        var style = new GUIStyle(GUI.skin.label) { fontSize = 16 };
-        string estadoRemoto = RemoteSeen ? "conectado" : "esperando primera posicion (404)";
+        // El tamano se deriva de la altura de la pantalla para que el texto sea
+        // legible tanto en el editor como en un build a pantalla completa.
+        int size = Mathf.Max(14, Mathf.RoundToInt(Screen.height * 0.028f));
+        float line = size * 1.5f;
+        float margin = size * 0.8f;
 
-        GUI.Label(new Rect(10, 10, 600, 24),
+        var style = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = size,
+            fontStyle = FontStyle.Bold,
+            normal = { textColor = Color.white }
+        };
+
+        string estadoRemoto = RemoteSeen ? "CONECTADO" : "esperando primera posicion (404)";
+
+        // Fondo oscuro semitransparente, para que el texto se lea sobre el cielo claro.
+        var box = new Rect(0, 0, Screen.width, line * 3 + margin * 2);
+        GUI.color = new Color(0f, 0f, 0f, 0.6f);
+        GUI.DrawTexture(box, Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        float y = margin;
+        GUI.Label(new Rect(margin, y, Screen.width, line),
             $"Jugador: {localPlayerId}   |   remoto: {remotePlayerId}   |   dt: {deltaTimeMs} ms", style);
-        GUI.Label(new Rect(10, 34, 600, 24),
+        y += line;
+        GUI.Label(new Rect(margin, y, Screen.width, line),
             $"Remoto: {estadoRemoto}   |   RTT: {LastRttMs:F1} ms", style);
-        GUI.Label(new Rect(10, 58, 600, 24),
+        y += line;
+        GUI.Label(new Rect(margin, y, Screen.width, line),
             $"POST: {PublishCount}   GET: {PollCount}   errores: {ErrorCount}", style);
     }
 }
