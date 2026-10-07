@@ -73,6 +73,34 @@ public class PositionSyncClient : MonoBehaviour
 
     float DeltaSeconds => deltaTimeMs / 1000f;
 
+    /// <summary>
+    /// Permite lanzar el mismo ejecutable con roles distintos, sin tener que
+    /// recompilar ni tocar el Inspector entre una instancia y otra:
+    ///
+    ///   juego.exe --player p1 --remote p2
+    ///   juego.exe --player p2 --remote p1 --dt 50
+    ///
+    /// Los argumentos que no se pasen conservan el valor del Inspector.
+    /// </summary>
+    void Awake()
+    {
+        string[] args = Environment.GetCommandLineArgs();
+
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            switch (args[i])
+            {
+                case "--player": localPlayerId = args[i + 1]; break;
+                case "--remote": remotePlayerId = args[i + 1]; break;
+                case "--game": gameId = args[i + 1]; break;
+                case "--server": serverUrl = args[i + 1]; break;
+                case "--dt":
+                    if (int.TryParse(args[i + 1], out int dt)) deltaTimeMs = dt;
+                    break;
+            }
+        }
+    }
+
     void OnEnable()
     {
         StartCoroutine(PublishLoop());
