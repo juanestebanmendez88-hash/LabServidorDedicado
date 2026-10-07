@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
+.venv/
+
+# Unity
+unity-client/[Ll]ibrary/
+unity-client/[Tt]emp/
+unity-client/[Oo]bj/
+unity-client/[Bb]uild/
+unity-client/[Bb]uilds/
+unity-client/[Ll]ogs/
+unity-client/[Uu]ser[Ss]ettings/
+*.csproj
+*.sln
+*.slnx
+
+# Builds de las instancias para los experimentos
+build-p1/
+build-p2/
+
+# Sistema
+.DS_Store
+Thumbs.db
