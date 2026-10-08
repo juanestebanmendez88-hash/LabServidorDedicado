@@ -46,6 +46,10 @@ public class ExperimentRunner : MonoBehaviour
     [Tooltip("Tasa de fotogramas durante los experimentos, para evitar la cuantizacion por fotograma.")]
     public int experimentFrameRate = 500;
 
+    [Tooltip("Segundos que la instancia observadora espera a que empiece la emision, " +
+             "para dar tiempo de cambiar de ventana y pulsar F2.")]
+    public float esperaInicioSegundos = 60f;
+
     [Header("Teclas")]
     public Key keyExperimentA = Key.F1;
     public Key keyEmitB = Key.F2;
@@ -198,27 +202,51 @@ public class ExperimentRunner : MonoBehaviour
         _observed.Clear();
         _observingB = true;
 
-        // Ventana de observacion: lo que tarda la emision mas un margen.
-        float window = (valuesB * emitIntervalMs / 1000f) + 3f;
-        float tEnd = Time.realtimeSinceStartup + window;
-
-        _status = $"Experimento B observando durante {window:F1} s (dt = {dt} ms). " +
-                  "Pulsa F2 en la otra instancia ahora.";
-        Debug.Log(_status);
-
-        while (Time.realtimeSinceStartup < tEnd)
+        // Fase 1: esperar a que la otra instancia empiece a emitir. La emision
+        // dura menos de medio segundo, asi que una ventana fija obligaria a
+        // cambiar de ventana y pulsar F2 en ese tiempo. En vez de eso se espera
+        // sin prisa a ver el primer valor de la secuencia.
+        float limite = Time.realtimeSinceStartup + esperaInicioSegundos;
+        while (Time.realtimeSinceStartup < limite && ValoresDeLaSecuencia().Count == 0)
         {
-            _status = $"Experimento B observando... {_observed.Count} lecturas, " +
-                      $"{_observed.Distinct().Count()} valores distintos (dt = {dt} ms)";
+            _status = $"Experimento B (dt = {dt} ms): esperando la emision. " +
+                      $"Pulsa F2 en la OTRA ventana. Quedan {limite - Time.realtimeSinceStartup:F0} s";
+            yield return null;
+        }
+
+        if (ValoresDeLaSecuencia().Count == 0)
+        {
+            _observingB = false;
+            _status = "Experimento B cancelado: no llego ningun valor. Pulsa F3 aqui " +
+                      "y enseguida F2 en la otra ventana.";
+            Debug.LogWarning(_status);
+            RestoreSettings();
+            _busy = false;
+            yield break;
+        }
+
+        // Fase 2: seguir observando mientras sigan llegando valores nuevos. Se
+        // corta cuando pasa un rato sin novedad, con margen suficiente para no
+        // cortar entre dos consultas cuando dt es grande.
+        float silencio = Mathf.Max(3f, dt / 1000f * 4f);
+        float ultimoCambio = Time.realtimeSinceStartup;
+        int vistos = ValoresDeLaSecuencia().Distinct().Count();
+
+        while (Time.realtimeSinceStartup - ultimoCambio < silencio)
+        {
+            int ahora = ValoresDeLaSecuencia().Distinct().Count();
+            if (ahora != vistos)
+            {
+                vistos = ahora;
+                ultimoCambio = Time.realtimeSinceStartup;
+            }
+            _status = $"Experimento B (dt = {dt} ms): {vistos} valores distintos de {valuesB}...";
             yield return null;
         }
 
         _observingB = false;
 
-        // Solo cuentan los valores de la secuencia emitida (1..valuesB): las
-        // lecturas previas a la emision corresponden a la posicion real del
-        // jugador y no forman parte del experimento.
-        var deLaSecuencia = _observed.Where(v => v >= 1 && v <= valuesB).ToList();
+        var deLaSecuencia = ValoresDeLaSecuencia();
         var distintos = deLaSecuencia.Distinct().OrderBy(v => v).ToList();
 
         var sb = new StringBuilder();
@@ -241,6 +269,16 @@ public class ExperimentRunner : MonoBehaviour
     }
 
     // ---------- Utilidades ----------
+
+    /// <summary>
+    /// Lecturas que pertenecen a la secuencia emitida (1..valuesB). Las demas
+    /// corresponden a la posicion real del jugador antes de que empezara la
+    /// emision y no forman parte del experimento.
+    /// </summary>
+    List<int> ValoresDeLaSecuencia()
+    {
+        return _observed.Where(v => v >= 1 && v <= valuesB).ToList();
+    }
 
     void ApplyMeasurementSettings()
     {
