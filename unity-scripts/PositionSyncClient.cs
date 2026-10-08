@@ -74,17 +74,21 @@ public class PositionSyncClient : MonoBehaviour
     float DeltaSeconds => deltaTimeMs / 1000f;
 
     /// <summary>
-    /// Permite lanzar el mismo ejecutable con roles distintos, sin tener que
-    /// recompilar ni tocar el Inspector entre una instancia y otra:
+    /// Reparte los roles entre instancias sin tener que editar el Inspector en
+    /// cada ventana. Se resuelve en dos pasos, de menor a mayor prioridad:
     ///
-    ///   juego.exe --player p1 --remote p2
-    ///   juego.exe --player p2 --remote p1 --dt 50
+    ///   1. Multiplayer Play Mode lanza cada editor con "-name PlayerN".
+    ///      El editor principal no lo recibe, asi que conserva lo del Inspector.
+    ///   2. Argumentos propios, para el juego compilado:
+    ///        juego.exe --player p2 --remote p1 --dt 50
     ///
-    /// Los argumentos que no se pasen conservan el valor del Inspector.
+    /// Lo que no se pase conserva el valor del Inspector.
     /// </summary>
     void Awake()
     {
         string[] args = Environment.GetCommandLineArgs();
+
+        ApplyPlaymodeName(args);
 
         for (int i = 0; i < args.Length - 1; i++)
         {
@@ -98,6 +102,29 @@ public class PositionSyncClient : MonoBehaviour
                     if (int.TryParse(args[i + 1], out int dt)) deltaTimeMs = dt;
                     break;
             }
+        }
+    }
+
+    /// <summary>
+    /// Traduce el "-name PlayerN" de Multiplayer Play Mode a un par de
+    /// identificadores: Player1 queda como p1 mirando a p2, y Player2 como p2
+    /// mirando a p1. Si el argumento no esta, no se toca nada.
+    /// </summary>
+    void ApplyPlaymodeName(string[] args)
+    {
+        const string prefix = "Player";
+
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] != "-name") continue;
+
+            string name = args[i + 1];
+            if (!name.StartsWith(prefix)) continue;
+            if (!int.TryParse(name.Substring(prefix.Length), out int n)) continue;
+
+            localPlayerId = $"p{n}";
+            remotePlayerId = n == 1 ? "p2" : "p1";
+            return;
         }
     }
 
