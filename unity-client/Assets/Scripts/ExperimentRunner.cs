@@ -399,7 +399,7 @@ public class ExperimentRunner : MonoBehaviour
 
         var sb = new StringBuilder();
         sb.AppendLine("# Experimento C: propagacion de eventos");
-        sb.AppendLine($"# jugador={eventClient.playerId} dt_ms={dt} emitidos={valuesC} intervalo_emision_ms={emitIntervalMs}");
+        sb.AppendLine($"# jugador={eventClient.MiId} dt_ms={dt} emitidos={valuesC} intervalo_emision_ms={emitIntervalMs}");
         sb.AppendLine($"# recibidos={seqs.Count} en_orden={enOrden} repetidos={repetidos}");
         sb.AppendLine($"# indices_recibidos={string.Join(" ", indices)}");
         sb.AppendLine("orden_llegada,seq,indice,player_id,timestamp");
@@ -409,7 +409,7 @@ public class ExperimentRunner : MonoBehaviour
             sb.AppendLine($"{i + 1},{e.seq},{e.payload.n},{e.player_id},{e.timestamp}");
         }
 
-        string file = Write($"expC_dt{dt}_{eventClient.playerId}.csv", sb.ToString());
+        string file = Write($"expC_dt{dt}_{eventClient.MiId}.csv", sb.ToString());
 
         _status = $"Experimento C terminado (dt = {dt} ms): {seqs.Count} de {valuesC} eventos, " +
                   $"en orden = {enOrden}, repetidos = {repetidos}. Guardado en {file}";

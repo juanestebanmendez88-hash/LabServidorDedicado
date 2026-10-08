@@ -32,6 +32,21 @@ public class EventClient : MonoBehaviour
     [Tooltip("Se toma del PositionSyncClient si se deja vacio.")]
     public string playerId = "";
 
+    /// <summary>
+    /// Identificador que se usa de verdad. Se resuelve en cada consulta y no
+    /// una vez en Awake, porque el orden de los Awake entre componentes del
+    /// mismo objeto no esta garantizado: si este corriera antes que el de
+    /// PositionSyncClient, se leeria el valor del Inspector en lugar del rol
+    /// ya resuelto, y las dos ventanas enviarian eventos como el mismo jugador.
+    /// </summary>
+    public string MiId =>
+        !string.IsNullOrEmpty(playerId) ? playerId
+        : (positionClient != null ? positionClient.localPlayerId : "p1");
+
+    /// <summary>Partida efectiva, resuelta igual que el identificador.</summary>
+    public string MiPartida =>
+        positionClient != null ? positionClient.gameId : gameId;
+
     [Header("Sondeo")]
     [Tooltip("Usa el mismo dt que el cliente de posiciones. Conviene dejarlo " +
              "activado: los experimentos B y C solo son comparables si ambos " +
@@ -72,15 +87,10 @@ public class EventClient : MonoBehaviour
 
     void Awake()
     {
+        // GetComponent es seguro en Awake sea cual sea el orden. Lo que no se
+        // puede es leer ya los valores que el otro componente resuelve en el
+        // suyo: para eso estan MiId y MiPartida.
         if (positionClient == null) positionClient = GetComponent<PositionSyncClient>();
-
-        // El rol ya lo resolvio PositionSyncClient en su propio Awake, leyendo
-        // los argumentos de arranque. Aqui solo se hereda.
-        if (string.IsNullOrEmpty(playerId) && positionClient != null)
-        {
-            playerId = positionClient.localPlayerId;
-            gameId = positionClient.gameId;
-        }
     }
 
     void OnEnable()
@@ -105,7 +115,7 @@ public class EventClient : MonoBehaviour
     {
         _cola.Enqueue(new EventPost
         {
-            player_id = playerId,
+            player_id = MiId,
             type = tipo,
             payload = new EventPayload
             {
@@ -135,7 +145,7 @@ public class EventClient : MonoBehaviour
 
     IEnumerator EnviarUno(EventPost evento)
     {
-        string url = $"{serverUrl}/games/{gameId}/events";
+        string url = $"{serverUrl}/games/{MiPartida}/events";
         string json = JsonUtility.ToJson(evento);
 
         using (var req = new UnityWebRequest(url, UnityWebRequest.kHttpVerbPOST))
@@ -171,7 +181,7 @@ public class EventClient : MonoBehaviour
 
     IEnumerator ConsultarUna()
     {
-        string url = $"{serverUrl}/games/{gameId}/events?since={LastSeq}";
+        string url = $"{serverUrl}/games/{MiPartida}/events?since={LastSeq}";
 
         using (var req = UnityWebRequest.Get(url))
         {

@@ -89,7 +89,7 @@ public class ArenaEvents : MonoBehaviour
         else if (kb[teclaEscudo].wasPressedThisFrame)
         {
             // El escudo recae sobre quien lo levanta.
-            eventClient.Enviar(ShieldRaised, yo.position, objetivo: eventClient.playerId);
+            eventClient.Enviar(ShieldRaised, yo.position, objetivo: eventClient.MiId);
         }
     }
 
@@ -124,7 +124,7 @@ public class ArenaEvents : MonoBehaviour
         {
             case ProjectileFired:
                 // Solo el proyectil de quien disparo decide si hubo impacto.
-                bool esMio = eventClient != null && e.player_id == eventClient.playerId;
+                bool esMio = eventClient != null && e.player_id == eventClient.MiId;
                 StartCoroutine(Proyectil(donde,
                     new Vector3(e.payload.dx, e.payload.dy, e.payload.dz), esMio));
                 break;

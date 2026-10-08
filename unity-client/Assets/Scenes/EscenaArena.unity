@@ -501,7 +501,7 @@ MonoBehaviour:
   gameId: g1
   localPlayerId: p1
   remotePlayerId: p2
-  deltaTimeMs: 1000
+  deltaTimeMs: 50
   jugador1: {fileID: 2000086175}
   jugador2: {fileID: 1039543999}
   separarAlAparecer: 1
@@ -537,9 +537,9 @@ MonoBehaviour:
   positionClient: {fileID: 0}
   teclaDisparo: 1
   teclaEscudo: 19
-  teclaGolpe: 31
   velocidadProyectil: 12
   vidaProyectil: 2
+  radioImpacto: 1.2
   duracionEscudo: 2
   duracionGolpe: 0.6
 --- !u!114 &369733796
@@ -557,6 +557,7 @@ MonoBehaviour:
   serverUrl: http://localhost:5006
   gameId: 
   playerId: 
+  heredarDelta: 1
   deltaTimeMs: 200
   positionClient: {fileID: 0}
 --- !u!1 &410087039
