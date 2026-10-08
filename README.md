@@ -13,7 +13,10 @@ Sincronización entre dos instancias de Unity por **sondeo periódico (polling)*
 |---|---|
 | `event-service/` | Servicio de eventos de la Parte 2 (Flask + Docker) |
 | `unity-client/` | Proyecto Unity con los clientes de las partes 1 y 2 |
+| `unity-client/MONTAJE.md` | Cómo está armada la escena y cómo se corren los experimentos |
 | `resultados/` | CSV de los experimentos A, B y C |
+| `informe/` | Informe del laboratorio |
+| `lanzadores/` | Archivos `.bat` para abrir dos instancias del juego compilado |
 
 El servicio de referencia de la Parte 1 **no está aquí**: es el del profesor, se clona aparte (ver abajo).
 

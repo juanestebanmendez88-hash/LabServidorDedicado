@@ -1,26 +1,40 @@
-# Python
+# ---------- Python ----------
 __pycache__/
 *.py[cod]
 .pytest_cache/
 venv/
 .venv/
 
-# Unity
+# ---------- Unity ----------
+# Carpetas que Unity regenera sola: no deben versionarse.
 unity-client/[Ll]ibrary/
 unity-client/[Tt]emp/
 unity-client/[Oo]bj/
 unity-client/[Bb]uild/
 unity-client/[Bb]uilds/
 unity-client/[Ll]ogs/
+unity-client/[Mm]emoryCaptures/
 unity-client/[Uu]ser[Ss]ettings/
+unity-client/.vscode/
+
+# Proyectos de IDE generados a partir de los Assets.
 *.csproj
 *.sln
 *.slnx
+*.unityproj
+*.user
 
-# Builds de las instancias para los experimentos
-build-p1/
-build-p2/
+# Artefactos de compilacion.
+*.apk
+*.aab
+*.unitypackage
+*.app
 
-# Sistema
+# Archivos de bloqueo y rastros del editor.
+sysinfo.txt
+crashlytics-build.properties
+
+# ---------- Sistema ----------
 .DS_Store
 Thumbs.db
+desktop.ini
