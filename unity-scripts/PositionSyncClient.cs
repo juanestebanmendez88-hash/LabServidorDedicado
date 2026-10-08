@@ -40,6 +40,14 @@ public class PositionSyncClient : MonoBehaviour
     [Range(10, 2000)]
     public int deltaTimeMs = 200;
 
+    [Header("Posicion inicial")]
+    [Tooltip("Separa el punto de aparicion segun el rol, para que las dos " +
+             "instancias no empiecen una encima de la otra.")]
+    public bool separarAlAparecer = true;
+
+    [Tooltip("Distancia entre los puntos de aparicion.")]
+    public float separacion = 4f;
+
     [Header("Objetos de la escena")]
     [Tooltip("Capsula que controla el jugador de esta instancia.")]
     public Transform localPlayer;
@@ -103,6 +111,28 @@ public class PositionSyncClient : MonoBehaviour
                     break;
             }
         }
+
+        // Las dos instancias cargan la misma escena, asi que sin esto ambas
+        // capsulas locales apareceria en el mismo punto y la remota quedaria
+        // tapada por la propia.
+        if (separarAlAparecer && localPlayer != null)
+            localPlayer.position = PuntoDeAparicion();
+    }
+
+    /// <summary>
+    /// Reparte a los jugadores a lo largo del eje X segun su numero, de modo
+    /// que p1 queda a un lado y p2 al otro. Conserva la altura y profundidad
+    /// que tenga la capsula en la escena.
+    /// </summary>
+    Vector3 PuntoDeAparicion()
+    {
+        int n = 1;
+        if (localPlayerId.Length > 1 && int.TryParse(localPlayerId.Substring(1), out int parsed))
+            n = parsed;
+
+        Vector3 p = localPlayer.position;
+        p.x = (n - 1.5f) * separacion;
+        return p;
     }
 
     /// <summary>
