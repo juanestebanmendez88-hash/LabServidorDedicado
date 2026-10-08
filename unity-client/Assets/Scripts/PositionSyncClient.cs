@@ -187,6 +187,15 @@ public class PositionSyncClient : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Capsula que representa a un jugador, en cualquiera de las dos ventanas.
+    /// La usa el cliente de eventos para saber sobre quien dibujar la reaccion.
+    /// </summary>
+    public Transform CapsulaDe(string playerId)
+    {
+        return NumeroDe(playerId) == 2 ? jugador2 : jugador1;
+    }
+
     static void ActivarControl(Transform capsula, bool activo)
     {
         if (capsula == null) return;

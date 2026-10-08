@@ -9,14 +9,18 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Ejecuta los experimentos A y B de la Parte 1 y guarda los resultados en CSV.
+/// Ejecuta los experimentos A, B y C y guarda los resultados en CSV.
 ///
 ///   F1  Experimento A: registra 100 RTT del GET con el dt configurado.
 ///   F2  Experimento B, emisor: publica posX = 1..20, uno cada 20 ms.
 ///   F3  Experimento B, observador: cuenta cuantos valores distintos ve.
+///   F4  Experimento C, emisor: envia 20 eventos, uno cada 20 ms.
+///   F5  Experimento C, observador: cuenta eventos, orden y repeticiones.
 ///
-/// El experimento B necesita las dos instancias: en una se pulsa F3 (observador)
-/// y enseguida en la otra F2 (emisor).
+/// Los experimentos B y C necesitan las dos instancias: en una se pulsa la
+/// tecla de observar y enseguida en la otra la de emitir. B mide el servicio
+/// de posiciones y C el de eventos, con el mismo dt, para que la comparacion
+/// entre ambos sea valida.
 ///
 /// Sobre la medicion: las corrutinas de Unity se reanudan una vez por fotograma,
 /// asi que cualquier espera se redondea al alza hasta el siguiente fotograma. A
@@ -28,6 +32,7 @@ public class ExperimentRunner : MonoBehaviour
 {
     [Header("Referencias")]
     public PositionSyncClient client;
+    public EventClient eventClient;
 
     [Header("Salida")]
     [Tooltip("Carpeta donde se guardan los CSV. Si se deja vacia se usa la del proyecto.")]
@@ -40,7 +45,10 @@ public class ExperimentRunner : MonoBehaviour
     [Tooltip("Valores distintos que emite el experimento B. La guia pide 20.")]
     public int valuesB = 20;
 
-    [Tooltip("Milisegundos entre valores del experimento B. La guia pide 20.")]
+    [Tooltip("Eventos que emite el experimento C. La guia pide 20.")]
+    public int valuesC = 20;
+
+    [Tooltip("Milisegundos entre valores o eventos emitidos. La guia pide 20.")]
     public int emitIntervalMs = 20;
 
     [Tooltip("Tasa de fotogramas durante los experimentos, para evitar la cuantizacion por fotograma.")]
@@ -54,23 +62,30 @@ public class ExperimentRunner : MonoBehaviour
     public Key keyExperimentA = Key.F1;
     public Key keyEmitB = Key.F2;
     public Key keyObserveB = Key.F3;
+    public Key keyEmitC = Key.F4;
+    public Key keyObserveC = Key.F5;
 
     // Estado de la recoleccion
     readonly List<double> _rttSamples = new List<double>();
     readonly List<int> _observed = new List<int>();
+    readonly List<GameEvent> _recibidosC = new List<GameEvent>();
     bool _collectingA;
     bool _observingB;
+    bool _observingC;
     bool _busy;
-    string _status = "Listo. F1 = experimento A, F2 = emitir B, F3 = observar B.";
+    string _status = "Listo. F1 = exp. A   |   F2/F3 = emitir/observar B   |   F4/F5 = emitir/observar C";
 
     void OnEnable()
     {
         if (client == null) client = GetComponent<PositionSyncClient>();
+        if (eventClient == null) eventClient = GetComponent<EventClient>();
+
         if (client != null)
         {
             client.OnPollCompleted += HandlePollCompleted;
             client.OnRemotePositionReceived += HandleRemotePosition;
         }
+        if (eventClient != null) eventClient.OnEventReceived += HandleEvent;
     }
 
     void OnDisable()
@@ -80,6 +95,7 @@ public class ExperimentRunner : MonoBehaviour
             client.OnPollCompleted -= HandlePollCompleted;
             client.OnRemotePositionReceived -= HandleRemotePosition;
         }
+        if (eventClient != null) eventClient.OnEventReceived -= HandleEvent;
     }
 
     void HandlePollCompleted(double rttMs)
@@ -94,6 +110,14 @@ public class ExperimentRunner : MonoBehaviour
         if (_observingB) _observed.Add(Mathf.RoundToInt(pos.x));
     }
 
+    void HandleEvent(GameEvent e)
+    {
+        // Solo cuentan los eventos de la secuencia del experimento, marcados
+        // con el tipo ExpC. Los de Arena que se disparen por teclado no
+        // forman parte de la medicion.
+        if (_observingC && e.type == TipoEventoC) _recibidosC.Add(e);
+    }
+
     void Update()
     {
         if (_busy) return;
@@ -104,6 +128,8 @@ public class ExperimentRunner : MonoBehaviour
         if (kb[keyExperimentA].wasPressedThisFrame) StartCoroutine(RunExperimentA());
         else if (kb[keyEmitB].wasPressedThisFrame) StartCoroutine(RunExperimentBEmitter());
         else if (kb[keyObserveB].wasPressedThisFrame) StartCoroutine(RunExperimentBObserver());
+        else if (kb[keyEmitC].wasPressedThisFrame) StartCoroutine(RunExperimentCEmitter());
+        else if (kb[keyObserveC].wasPressedThisFrame) StartCoroutine(RunExperimentCObserver());
     }
 
     // ---------- Experimento A ----------
@@ -262,6 +288,128 @@ public class ExperimentRunner : MonoBehaviour
 
         _status = $"Experimento B terminado (dt = {dt} ms): {distintos.Count} de {valuesB} " +
                   $"valores distintos observados. Guardado en {file}";
+        Debug.Log(_status);
+
+        RestoreSettings();
+        _busy = false;
+    }
+
+    // ---------- Experimento C ----------
+
+    /// <summary>Tipo con el que se marcan los eventos de la medicion.</summary>
+    public const string TipoEventoC = "ExpC";
+
+    IEnumerator RunExperimentCEmitter()
+    {
+        if (eventClient == null)
+        {
+            _status = "Experimento C: falta asignar el Event Client en el Inspector.";
+            Debug.LogError(_status);
+            yield break;
+        }
+
+        _busy = true;
+        ApplyMeasurementSettings();
+
+        _status = $"Experimento C: enviando {valuesC} eventos, uno cada {emitIntervalMs} ms...";
+        Debug.Log(_status);
+
+        float intervalo = emitIntervalMs / 1000f;
+        for (int i = 1; i <= valuesC; i++)
+        {
+            eventClient.Enviar(TipoEventoC, Vector3.zero, Vector3.zero, i);
+            yield return new WaitForSeconds(intervalo);
+        }
+
+        // Los envios salen de la cola de uno en uno, asi que se espera a que
+        // se vacie antes de dar por terminada la emision.
+        while (eventClient.PendingSends > 0) yield return null;
+
+        _status = $"Experimento C: {valuesC} eventos enviados. " +
+                  "Los resultados se leen en la instancia observadora.";
+        Debug.Log(_status);
+
+        RestoreSettings();
+        _busy = false;
+    }
+
+    IEnumerator RunExperimentCObserver()
+    {
+        if (eventClient == null)
+        {
+            _status = "Experimento C: falta asignar el Event Client en el Inspector.";
+            Debug.LogError(_status);
+            yield break;
+        }
+
+        _busy = true;
+        ApplyMeasurementSettings();
+
+        int dt = client != null ? client.deltaTimeMs : eventClient.deltaTimeMs;
+        _recibidosC.Clear();
+        _observingC = true;
+
+        // Igual que en B: se espera sin prisa a que empiece la emision, para
+        // dar tiempo de cambiar de ventana.
+        float limite = Time.realtimeSinceStartup + esperaInicioSegundos;
+        while (Time.realtimeSinceStartup < limite && _recibidosC.Count == 0)
+        {
+            _status = $"Experimento C (dt = {dt} ms): esperando los eventos. " +
+                      $"Pulsa F4 en la OTRA ventana. Quedan {limite - Time.realtimeSinceStartup:F0} s";
+            yield return null;
+        }
+
+        if (_recibidosC.Count == 0)
+        {
+            _observingC = false;
+            _status = "Experimento C cancelado: no llego ningun evento. Pulsa F5 aqui " +
+                      "y enseguida F4 en la otra ventana.";
+            Debug.LogWarning(_status);
+            RestoreSettings();
+            _busy = false;
+            yield break;
+        }
+
+        float silencio = Mathf.Max(3f, dt / 1000f * 4f);
+        float ultimoCambio = Time.realtimeSinceStartup;
+        int vistos = _recibidosC.Count;
+
+        while (Time.realtimeSinceStartup - ultimoCambio < silencio)
+        {
+            if (_recibidosC.Count != vistos)
+            {
+                vistos = _recibidosC.Count;
+                ultimoCambio = Time.realtimeSinceStartup;
+            }
+            _status = $"Experimento C (dt = {dt} ms): {vistos} eventos de {valuesC}...";
+            yield return null;
+        }
+
+        _observingC = false;
+
+        // Las tres propiedades que pide la guia: cuantos llegaron, si venian en
+        // orden y si alguno se repitio.
+        var seqs = _recibidosC.Select(e => e.seq).ToList();
+        var indices = _recibidosC.Select(e => e.payload.n).ToList();
+        bool enOrden = seqs.SequenceEqual(seqs.OrderBy(s => s));
+        int repetidos = seqs.Count - seqs.Distinct().Count();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Experimento C: propagacion de eventos");
+        sb.AppendLine($"# jugador={eventClient.playerId} dt_ms={dt} emitidos={valuesC} intervalo_emision_ms={emitIntervalMs}");
+        sb.AppendLine($"# recibidos={seqs.Count} en_orden={enOrden} repetidos={repetidos}");
+        sb.AppendLine($"# indices_recibidos={string.Join(" ", indices)}");
+        sb.AppendLine("orden_llegada,seq,indice,player_id,timestamp");
+        for (int i = 0; i < _recibidosC.Count; i++)
+        {
+            var e = _recibidosC[i];
+            sb.AppendLine($"{i + 1},{e.seq},{e.payload.n},{e.player_id},{e.timestamp}");
+        }
+
+        string file = Write($"expC_dt{dt}_{eventClient.playerId}.csv", sb.ToString());
+
+        _status = $"Experimento C terminado (dt = {dt} ms): {seqs.Count} de {valuesC} eventos, " +
+                  $"en orden = {enOrden}, repetidos = {repetidos}. Guardado en {file}";
         Debug.Log(_status);
 
         RestoreSettings();
