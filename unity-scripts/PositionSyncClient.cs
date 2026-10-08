@@ -13,6 +13,12 @@ using Debug = UnityEngine.Debug;
 ///   - PublishLoop: envia la posicion del jugador local cada dt.
 ///   - PollLoop:    consulta la posicion del jugador remoto cada dt.
 ///
+/// Las capsulas se declaran por numero de jugador y no por papel, de modo que
+/// la capsula del jugador 1 es la misma en las dos ventanas. El papel (cual se
+/// controla y cual se refleja) lo decide esta clase segun el rol que le toque a
+/// la instancia. Si se declararan como "local" y "remota", su color y su
+/// etiqueta significarian cosas distintas en cada ventana.
+///
 /// Requisitos del laboratorio que resuelve esta clase:
 ///   - Ninguna peticion bloquea el hilo principal (todas son corrutinas).
 ///   - Como maximo una peticion en curso por tipo, sin solapamiento.
@@ -40,6 +46,13 @@ public class PositionSyncClient : MonoBehaviour
     [Range(10, 2000)]
     public int deltaTimeMs = 200;
 
+    [Header("Capsulas por numero de jugador")]
+    [Tooltip("Capsula del jugador 1. Es la misma en las dos ventanas.")]
+    public Transform jugador1;
+
+    [Tooltip("Capsula del jugador 2. Es la misma en las dos ventanas.")]
+    public Transform jugador2;
+
     [Header("Posicion inicial")]
     [Tooltip("Separa el punto de aparicion segun el rol, para que las dos " +
              "instancias no empiecen una encima de la otra.")]
@@ -48,12 +61,13 @@ public class PositionSyncClient : MonoBehaviour
     [Tooltip("Distancia entre los puntos de aparicion.")]
     public float separacion = 4f;
 
-    [Header("Objetos de la escena")]
-    [Tooltip("Capsula que controla el jugador de esta instancia.")]
-    public Transform localPlayer;
+    // ---------- Papeles resueltos en Awake ----------
 
-    [Tooltip("Capsula que representa al jugador de la otra instancia.")]
-    public Transform remotePlayer;
+    /// <summary>Capsula que controla esta instancia y cuya posicion se publica.</summary>
+    public Transform LocalPlayer { get; private set; }
+
+    /// <summary>Capsula que refleja la posicion recibida del servicio.</summary>
+    public Transform RemotePlayer { get; private set; }
 
     // ---------- Estado observable, para la UI y los experimentos ----------
 
@@ -112,27 +126,7 @@ public class PositionSyncClient : MonoBehaviour
             }
         }
 
-        // Las dos instancias cargan la misma escena, asi que sin esto ambas
-        // capsulas locales apareceria en el mismo punto y la remota quedaria
-        // tapada por la propia.
-        if (separarAlAparecer && localPlayer != null)
-            localPlayer.position = PuntoDeAparicion();
-    }
-
-    /// <summary>
-    /// Reparte a los jugadores a lo largo del eje X segun su numero, de modo
-    /// que p1 queda a un lado y p2 al otro. Conserva la altura y profundidad
-    /// que tenga la capsula en la escena.
-    /// </summary>
-    Vector3 PuntoDeAparicion()
-    {
-        int n = 1;
-        if (localPlayerId.Length > 1 && int.TryParse(localPlayerId.Substring(1), out int parsed))
-            n = parsed;
-
-        Vector3 p = localPlayer.position;
-        p.x = (n - 1.5f) * separacion;
-        return p;
+        AsignarPapeles();
     }
 
     /// <summary>
@@ -156,6 +150,49 @@ public class PositionSyncClient : MonoBehaviour
             remotePlayerId = n == 1 ? "p2" : "p1";
             return;
         }
+    }
+
+    /// <summary>Extrae el numero de un identificador con forma "pN".</summary>
+    static int NumeroDe(string playerId)
+    {
+        if (playerId != null && playerId.Length > 1 &&
+            int.TryParse(playerId.Substring(1), out int n))
+            return n;
+        return 1;
+    }
+
+    /// <summary>
+    /// Decide cual capsula controla esta instancia y cual refleja a la otra, y
+    /// deja activo el control por teclado solo en la propia. Asi la capsula del
+    /// jugador 1 conserva su color y su etiqueta en las dos ventanas.
+    /// </summary>
+    void AsignarPapeles()
+    {
+        bool soyElDos = NumeroDe(localPlayerId) == 2;
+
+        LocalPlayer = soyElDos ? jugador2 : jugador1;
+        RemotePlayer = soyElDos ? jugador1 : jugador2;
+
+        // El teclado solo mueve la capsula propia. La otra la mueve el servicio.
+        ActivarControl(LocalPlayer, true);
+        ActivarControl(RemotePlayer, false);
+
+        // Las dos instancias cargan la misma escena, asi que sin esto ambas
+        // capsulas apareceria en el mismo punto.
+        if (separarAlAparecer && LocalPlayer != null)
+        {
+            Vector3 p = LocalPlayer.position;
+            p.x = (NumeroDe(localPlayerId) - 1.5f) * separacion;
+            LocalPlayer.position = p;
+        }
+    }
+
+    static void ActivarControl(Transform capsula, bool activo)
+    {
+        if (capsula == null) return;
+
+        var control = capsula.GetComponent<PlayerController>();
+        if (control != null) control.enabled = activo;
     }
 
     void OnEnable()
@@ -200,9 +237,9 @@ public class PositionSyncClient : MonoBehaviour
 
     IEnumerator PublishOnce()
     {
-        if (localPlayer == null) yield break;
+        if (LocalPlayer == null) yield break;
 
-        Vector3 p = PositionOverride ?? localPlayer.position;
+        Vector3 p = PositionOverride ?? LocalPlayer.position;
         var body = new PositionData { posX = p.x, posY = p.y, posZ = p.z };
         string json = JsonUtility.ToJson(body);
         string url = $"{serverUrl}/server/{gameId}/{localPlayerId}";
@@ -252,7 +289,7 @@ public class PositionSyncClient : MonoBehaviour
                 var data = JsonUtility.FromJson<PositionData>(req.downloadHandler.text);
                 var pos = new Vector3(data.posX, data.posY, data.posZ);
 
-                if (remotePlayer != null) remotePlayer.position = pos;
+                if (RemotePlayer != null) RemotePlayer.position = pos;
 
                 RemoteSeen = true;
                 OnRemotePositionReceived?.Invoke(pos);
@@ -274,13 +311,33 @@ public class PositionSyncClient : MonoBehaviour
 
     // ---------- Indicador en pantalla ----------
 
+    /// <summary>Color distintivo de cada instancia, para no confundir las ventanas.</summary>
+    Color ColorDeJugador()
+    {
+        switch (NumeroDe(localPlayerId))
+        {
+            case 1: return new Color(1f, 0.45f, 0.35f);   // rojizo
+            case 2: return new Color(0.45f, 0.7f, 1f);    // azul claro
+            case 3: return new Color(0.6f, 1f, 0.5f);     // verde
+            default: return Color.white;
+        }
+    }
+
     void OnGUI()
     {
-        // El tamano se deriva de la altura de la pantalla para que el texto sea
-        // legible tanto en el editor como en un build a pantalla completa.
-        int size = Mathf.Max(14, Mathf.RoundToInt(Screen.height * 0.028f));
-        float line = size * 1.5f;
+        // Los tamanos se derivan de la altura de la pantalla para que el texto
+        // sea legible tanto en el editor como a pantalla completa.
+        int size = Mathf.Max(14, Mathf.RoundToInt(Screen.height * 0.026f));
+        int titleSize = size * 2;
+        float line = size * 1.45f;
         float margin = size * 0.8f;
+
+        var title = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = titleSize,
+            fontStyle = FontStyle.Bold,
+            normal = { textColor = ColorDeJugador() }
+        };
 
         var style = new GUIStyle(GUI.skin.label)
         {
@@ -291,15 +348,18 @@ public class PositionSyncClient : MonoBehaviour
 
         string estadoRemoto = RemoteSeen ? "CONECTADO" : "esperando primera posicion (404)";
 
-        // Fondo oscuro semitransparente, para que el texto se lea sobre el cielo claro.
-        var box = new Rect(0, 0, Screen.width, line * 3 + margin * 2);
-        GUI.color = new Color(0f, 0f, 0f, 0.6f);
-        GUI.DrawTexture(box, Texture2D.whiteTexture);
+        float alto = titleSize * 1.4f + line * 3 + margin * 2;
+        GUI.color = new Color(0f, 0f, 0f, 0.65f);
+        GUI.DrawTexture(new Rect(0, 0, Screen.width, alto), Texture2D.whiteTexture);
         GUI.color = Color.white;
 
         float y = margin;
+        GUI.Label(new Rect(margin, y, Screen.width, titleSize * 1.4f),
+            $"ESTA VENTANA CONTROLA A  {localPlayerId.ToUpper()}", title);
+        y += titleSize * 1.4f;
+
         GUI.Label(new Rect(margin, y, Screen.width, line),
-            $"Jugador: {localPlayerId}   |   remoto: {remotePlayerId}   |   dt: {deltaTimeMs} ms", style);
+            $"publica como {localPlayerId}   |   observa a {remotePlayerId}   |   dt: {deltaTimeMs} ms", style);
         y += line;
         GUI.Label(new Rect(margin, y, Screen.width, line),
             $"Remoto: {estadoRemoto}   |   RTT: {LastRttMs:F1} ms", style);
