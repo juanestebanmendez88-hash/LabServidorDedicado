@@ -246,6 +246,11 @@ public class ExperimentRunner : MonoBehaviour
     {
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = experimentFrameRate;
+
+        // Durante el experimento B hay que hacer clic en la otra ventana para
+        // lanzar la emision, con lo que esta pierde el foco. Sin esto, Unity
+        // la congelaria y dejaria de sondear justo mientras mide.
+        Application.runInBackground = true;
     }
 
     void RestoreSettings()
