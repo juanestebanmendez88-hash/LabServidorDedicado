@@ -501,7 +501,7 @@ MonoBehaviour:
   gameId: g1
   localPlayerId: p1
   remotePlayerId: p2
-  deltaTimeMs: 50
+  deltaTimeMs: 1000
   jugador1: {fileID: 2000086175}
   jugador2: {fileID: 1039543999}
   separarAlAparecer: 1
