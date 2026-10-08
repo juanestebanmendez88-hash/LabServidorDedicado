@@ -12,6 +12,13 @@ public class EventPayload
     public float x, y, z;       // donde ocurrio
     public float dx, dy, dz;    // direccion, para el proyectil
     public int n;               // indice, lo usa el experimento C
+
+    /// <summary>
+    /// Jugador sobre el que recae el evento, que no tiene por que ser quien lo
+    /// envia: en un PlayerHit quien avisa es el que disparo, pero el que
+    /// parpadea es el alcanzado.
+    /// </summary>
+    public string target;
 }
 
 /// <summary>Cuerpo del POST a /games/{game_id}/events.</summary>

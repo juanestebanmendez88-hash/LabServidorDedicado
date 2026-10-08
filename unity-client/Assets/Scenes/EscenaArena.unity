@@ -450,6 +450,8 @@ GameObject:
   - component: {fileID: 369733794}
   - component: {fileID: 369733793}
   - component: {fileID: 369733792}
+  - component: {fileID: 369733796}
+  - component: {fileID: 369733795}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -470,15 +472,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ExperimentRunner
   client: {fileID: 369733793}
+  eventClient: {fileID: 0}
   outputFolder: C:\Users\usuario\Documents\Unity\LabServidorDedicado\resultados
   samplesA: 100
   valuesB: 20
+  valuesC: 20
   emitIntervalMs: 20
   experimentFrameRate: 500
   esperaInicioSegundos: 60
   keyExperimentA: 94
   keyEmitB: 95
   keyObserveB: 96
+  keyEmitC: 97
+  keyObserveC: 98
 --- !u!114 &369733793
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -515,6 +521,44 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &369733795
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 369733791}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c70f062bb9191ee49a0e267bf91ff190, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArenaEvents
+  eventClient: {fileID: 369733796}
+  positionClient: {fileID: 0}
+  teclaDisparo: 1
+  teclaEscudo: 19
+  teclaGolpe: 31
+  velocidadProyectil: 12
+  vidaProyectil: 2
+  duracionEscudo: 2
+  duracionGolpe: 0.6
+--- !u!114 &369733796
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 369733791}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3fb7ccf28e2117f4da384a9dad00885a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EventClient
+  serverUrl: http://localhost:5006
+  gameId: 
+  playerId: 
+  deltaTimeMs: 200
+  positionClient: {fileID: 0}
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0

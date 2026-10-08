@@ -87,7 +87,8 @@ public class EventClient : MonoBehaviour
     /// Encola un evento. Devuelve de inmediato: el envio real ocurre en la
     /// corrutina, de modo que pulsar una tecla nunca congela el juego.
     /// </summary>
-    public void Enviar(string tipo, Vector3 donde, Vector3 direccion = default, int indice = 0)
+    public void Enviar(string tipo, Vector3 donde, Vector3 direccion = default,
+                       int indice = 0, string objetivo = null)
     {
         _cola.Enqueue(new EventPost
         {
@@ -97,7 +98,8 @@ public class EventClient : MonoBehaviour
             {
                 x = donde.x, y = donde.y, z = donde.z,
                 dx = direccion.x, dy = direccion.y, dz = direccion.z,
-                n = indice
+                n = indice,
+                target = objetivo ?? ""
             },
             // Un identificador por evento, para que un reenvio no lo duplique.
             event_id = Guid.NewGuid().ToString()

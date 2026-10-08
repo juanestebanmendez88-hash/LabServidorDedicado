@@ -8,9 +8,14 @@ using UnityEngine.Rendering;
 /// Escenario 1 del laboratorio, Arena. Traduce las teclas en eventos y los
 /// eventos recibidos en una reaccion visible.
 ///
-///   Espacio  ProjectileFired  dispara una esfera desde quien lo lanzo
-///   E        ShieldRaised     envuelve al jugador en un escudo translucido
-///   Q        PlayerHit        el jugador parpadea y se encoge
+///   Espacio  ProjectileFired  dispara una esfera hacia el otro jugador
+///   E        ShieldRaised     envuelve a quien lo lanza en un escudo
+///   Q        PlayerHit        golpe directo al otro jugador, sin proyectil
+///
+/// PlayerHit tambien se emite solo cuando un proyectil alcanza a alguien, y en
+/// ambos casos recae sobre el jugador alcanzado y no sobre quien lo envia.
+/// Solo la instancia que disparo decide si hubo impacto: si las dos lo
+/// decidieran, el mismo golpe se registraria dos veces.
 ///
 /// Las reacciones se disparan desde el evento recibido y no desde la tecla,
 /// incluso para los eventos propios. Asi las dos ventanas reproducen lo mismo
@@ -38,6 +43,9 @@ public class ArenaEvents : MonoBehaviour
     [Header("Proyectil")]
     public float velocidadProyectil = 12f;
     public float vidaProyectil = 2f;
+
+    [Tooltip("Distancia a la que el proyectil cuenta como impacto.")]
+    public float radioImpacto = 1.2f;
 
     [Header("Duraciones")]
     public float duracionEscudo = 2f;
@@ -75,11 +83,22 @@ public class ArenaEvents : MonoBehaviour
         if (yo == null) return;
 
         if (kb[teclaDisparo].wasPressedThisFrame)
+        {
             eventClient.Enviar(ProjectileFired, yo.position, DireccionDeDisparo(yo));
+        }
         else if (kb[teclaEscudo].wasPressedThisFrame)
-            eventClient.Enviar(ShieldRaised, yo.position);
+        {
+            // El escudo recae sobre quien lo levanta.
+            eventClient.Enviar(ShieldRaised, yo.position, objetivo: eventClient.playerId);
+        }
         else if (kb[teclaGolpe].wasPressedThisFrame)
-            eventClient.Enviar(PlayerHit, yo.position);
+        {
+            // Golpe directo: lo anuncia quien pega, pero recae sobre el otro.
+            Transform otro = positionClient.RemotePlayer;
+            if (otro != null)
+                eventClient.Enviar(PlayerHit, otro.position,
+                                   objetivo: positionClient.remotePlayerId);
+        }
     }
 
     /// <summary>
@@ -101,24 +120,33 @@ public class ArenaEvents : MonoBehaviour
 
     void Reproducir(GameEvent e)
     {
+        if (positionClient == null) return;
+
         Vector3 donde = new Vector3(e.payload.x, e.payload.y, e.payload.z);
-        Transform quien = positionClient != null ? positionClient.CapsulaDe(e.player_id) : null;
+
+        // Sobre quien recae el evento. Si no viene indicado, sobre quien lo envia.
+        string objetivo = string.IsNullOrEmpty(e.payload.target) ? e.player_id : e.payload.target;
+        Transform sobreQuien = positionClient.CapsulaDe(objetivo);
 
         switch (e.type)
         {
             case ProjectileFired:
-                StartCoroutine(Proyectil(donde, new Vector3(e.payload.dx, e.payload.dy, e.payload.dz)));
+                // Solo el proyectil de quien disparo decide si hubo impacto.
+                bool esMio = eventClient != null && e.player_id == eventClient.playerId;
+                StartCoroutine(Proyectil(donde,
+                    new Vector3(e.payload.dx, e.payload.dy, e.payload.dz), esMio));
                 break;
 
             case ShieldRaised:
-                if (quien != null) StartCoroutine(Escudo(quien));
+                if (sobreQuien != null) StartCoroutine(Escudo(sobreQuien));
                 break;
 
             case PlayerHit:
                 // Si ya hay un golpe en curso sobre esa capsula no se lanza
                 // otro: el segundo tomaria como color original el que dejo el
                 // primero a medias y la capsula se quedaria blanca.
-                if (quien != null && !_golpeados.Contains(quien)) StartCoroutine(Golpe(quien));
+                if (sobreQuien != null && !_golpeados.Contains(sobreQuien))
+                    StartCoroutine(Golpe(sobreQuien));
                 break;
 
             case ExperimentRunner.TipoEventoC:
@@ -133,7 +161,12 @@ public class ArenaEvents : MonoBehaviour
         _ultimo = $"seq {e.seq}  {e.type}  de {e.player_id}";
     }
 
-    IEnumerator Proyectil(Vector3 desde, Vector3 direccion)
+    /// <param name="autoritativo">
+    /// Cierto solo en la instancia que disparo. Esa es la unica que decide si
+    /// hubo impacto y emite el PlayerHit; en la otra el proyectil es decorado.
+    /// Si ambas lo decidieran, el mismo golpe se registraria dos veces.
+    /// </param>
+    IEnumerator Proyectil(Vector3 desde, Vector3 direccion, bool autoritativo)
     {
         if (direccion.sqrMagnitude < 0.01f) direccion = Vector3.forward;
         direccion.Normalize();
@@ -145,10 +178,21 @@ public class ArenaEvents : MonoBehaviour
         Destroy(bola.GetComponent<Collider>());
         Pintar(bola, new Color(1f, 0.85f, 0.2f), false);
 
+        string victimaId = positionClient.remotePlayerId;
+        Transform victima = positionClient.RemotePlayer;
+
         float t = 0f;
         while (t < vidaProyectil && bola != null)
         {
             bola.transform.position += direccion * (velocidadProyectil * Time.deltaTime);
+
+            if (autoritativo && victima != null &&
+                Vector3.Distance(bola.transform.position, victima.position) < radioImpacto)
+            {
+                eventClient.Enviar(PlayerHit, victima.position, objetivo: victimaId);
+                break;
+            }
+
             t += Time.deltaTime;
             yield return null;
         }
@@ -254,7 +298,8 @@ public class ArenaEvents : MonoBehaviour
         };
 
         GUI.Label(new Rect(size, y + size * 0.3f, Screen.width, line),
-            $"ARENA   Espacio = disparo   E = escudo   Q = golpe", estilo);
+            "ARENA   Espacio = disparar (el impacto genera PlayerHit)   " +
+            "E = escudo propio   Q = golpe directo al otro", estilo);
         GUI.Label(new Rect(size, y + size * 0.3f + line, Screen.width, line),
             $"enviados: {eventClient.SentCount}   recibidos: {eventClient.ReceivedCount}   " +
             $"last_seq: {eventClient.LastSeq}   |   ultimo: {_ultimo}", estilo);
