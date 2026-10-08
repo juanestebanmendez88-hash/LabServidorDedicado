@@ -345,7 +345,10 @@ public class ExperimentRunner : MonoBehaviour
         _busy = true;
         ApplyMeasurementSettings();
 
-        int dt = client != null ? client.deltaTimeMs : eventClient.deltaTimeMs;
+        // El dt que se reporta es el que el cliente de eventos esta usando de
+        // verdad, no el del cliente de posiciones: si fueran distintos, el CSV
+        // quedaria etiquetado con un intervalo que no es el que se midio.
+        int dt = eventClient.DeltaEfectivoMs;
         _recibidosC.Clear();
         _observingC = true;
 

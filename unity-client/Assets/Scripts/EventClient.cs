@@ -33,7 +33,12 @@ public class EventClient : MonoBehaviour
     public string playerId = "";
 
     [Header("Sondeo")]
-    [Tooltip("Intervalo de consulta en milisegundos.")]
+    [Tooltip("Usa el mismo dt que el cliente de posiciones. Conviene dejarlo " +
+             "activado: los experimentos B y C solo son comparables si ambos " +
+             "sondean al mismo ritmo, y asi hay una sola casilla que cambiar.")]
+    public bool heredarDelta = true;
+
+    [Tooltip("Intervalo de consulta en milisegundos. Se ignora si se hereda.")]
     [Range(10, 2000)]
     public int deltaTimeMs = 200;
 
@@ -55,7 +60,15 @@ public class EventClient : MonoBehaviour
 
     readonly Queue<EventPost> _cola = new Queue<EventPost>();
 
-    float DeltaSeconds => deltaTimeMs / 1000f;
+    /// <summary>
+    /// Intervalo que se esta usando de verdad. Se lee en cada vuelta, de modo
+    /// que un cambio de dt en el Inspector tiene efecto en caliente tambien
+    /// cuando se hereda.
+    /// </summary>
+    public int DeltaEfectivoMs =>
+        (heredarDelta && positionClient != null) ? positionClient.deltaTimeMs : deltaTimeMs;
+
+    float DeltaSeconds => DeltaEfectivoMs / 1000f;
 
     void Awake()
     {
