@@ -10,12 +10,11 @@ using UnityEngine.Rendering;
 ///
 ///   Espacio  ProjectileFired  dispara una esfera hacia el otro jugador
 ///   E        ShieldRaised     envuelve a quien lo lanza en un escudo
-///   Q        PlayerHit        golpe directo al otro jugador, sin proyectil
 ///
-/// PlayerHit tambien se emite solo cuando un proyectil alcanza a alguien, y en
-/// ambos casos recae sobre el jugador alcanzado y no sobre quien lo envia.
-/// Solo la instancia que disparo decide si hubo impacto: si las dos lo
-/// decidieran, el mismo golpe se registraria dos veces.
+/// PlayerHit no tiene tecla: lo emite el propio proyectil al alcanzar a
+/// alguien, y recae sobre el alcanzado y no sobre quien disparo. Solo la
+/// instancia que disparo decide si hubo impacto: si las dos lo decidieran, el
+/// mismo golpe se registraria dos veces.
 ///
 /// Las reacciones se disparan desde el evento recibido y no desde la tecla,
 /// incluso para los eventos propios. Asi las dos ventanas reproducen lo mismo
@@ -38,14 +37,15 @@ public class ArenaEvents : MonoBehaviour
     [Header("Teclas")]
     public Key teclaDisparo = Key.Space;
     public Key teclaEscudo = Key.E;
-    public Key teclaGolpe = Key.Q;
 
     [Header("Proyectil")]
     public float velocidadProyectil = 12f;
     public float vidaProyectil = 2f;
 
-    [Tooltip("Distancia a la que el proyectil cuenta como impacto.")]
-    public float radioImpacto = 1.2f;
+    [Tooltip("Distancia a la que el proyectil cuenta como impacto. Generoso a " +
+             "proposito: se apunta a la ultima posicion conocida del otro, que " +
+             "tiene hasta dt de retraso.")]
+    public float radioImpacto = 1.5f;
 
     [Header("Duraciones")]
     public float duracionEscudo = 2f;
@@ -90,14 +90,6 @@ public class ArenaEvents : MonoBehaviour
         {
             // El escudo recae sobre quien lo levanta.
             eventClient.Enviar(ShieldRaised, yo.position, objetivo: eventClient.playerId);
-        }
-        else if (kb[teclaGolpe].wasPressedThisFrame)
-        {
-            // Golpe directo: lo anuncia quien pega, pero recae sobre el otro.
-            Transform otro = positionClient.RemotePlayer;
-            if (otro != null)
-                eventClient.Enviar(PlayerHit, otro.position,
-                                   objetivo: positionClient.remotePlayerId);
         }
     }
 
@@ -298,8 +290,8 @@ public class ArenaEvents : MonoBehaviour
         };
 
         GUI.Label(new Rect(size, y + size * 0.3f, Screen.width, line),
-            "ARENA   Espacio = disparar (el impacto genera PlayerHit)   " +
-            "E = escudo propio   Q = golpe directo al otro", estilo);
+            "ARENA   Espacio = disparar   E = escudo   " +
+            "(el impacto del proyectil genera PlayerHit sobre el alcanzado)", estilo);
         GUI.Label(new Rect(size, y + size * 0.3f + line, Screen.width, line),
             $"enviados: {eventClient.SentCount}   recibidos: {eventClient.ReceivedCount}   " +
             $"last_seq: {eventClient.LastSeq}   |   ultimo: {_ultimo}", estilo);
