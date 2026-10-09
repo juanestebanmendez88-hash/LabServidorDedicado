@@ -1,17 +1,15 @@
-import os
-import sys
 import threading
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import app as app_module
+from resources import events as events_module
 
 
 @pytest.fixture
 def client():
-    app_module._events.clear()
-    app_module._event_ids.clear()
+    events_module._events.clear()
+    events_module._event_ids.clear()
     return app_module.create_app().test_client()
 
 

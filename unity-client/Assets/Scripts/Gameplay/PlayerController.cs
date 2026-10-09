@@ -11,16 +11,16 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        var kb = Keyboard.current;
-        if (kb == null) return;
+        var keyboard = Keyboard.current;
+        if (keyboard == null) return;
 
-        float h = 0f, v = 0f;
-        if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) h -= 1f;
-        if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) h += 1f;
-        if (kb.sKey.isPressed || kb.downArrowKey.isPressed) v -= 1f;
-        if (kb.wKey.isPressed || kb.upArrowKey.isPressed) v += 1f;
+        float horizontal = 0f, vertical = 0f;
+        if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) horizontal -= 1f;
+        if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) horizontal += 1f;
+        if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) vertical -= 1f;
+        if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) vertical += 1f;
 
-        Vector3 input = new Vector3(h, 0f, v);
+        Vector3 input = new Vector3(horizontal, 0f, vertical);
         if (input.sqrMagnitude > 1f) input.Normalize();
         if (input.sqrMagnitude < 0.0001f) return;
 

@@ -85,7 +85,7 @@ public class EventClient : MonoBehaviour
             {
                 x = origin.x, y = origin.y, z = origin.z,
                 dx = direction.x, dy = direction.y, dz = direction.z,
-                n = index,
+                sequenceIndex = index,
                 target = targetId ?? ""
             },
             event_id = Guid.NewGuid().ToString()

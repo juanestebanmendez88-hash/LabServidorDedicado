@@ -88,21 +88,21 @@ public class ArenaEvents : MonoBehaviour
         return self.forward;
     }
 
-    void PlayReaction(GameEvent e)
+    void PlayReaction(GameEvent gameEvent)
     {
         if (positionClient == null) return;
 
-        Vector3 origin = new Vector3(e.payload.x, e.payload.y, e.payload.z);
+        Vector3 origin = new Vector3(gameEvent.payload.x, gameEvent.payload.y, gameEvent.payload.z);
 
-        string targetId = string.IsNullOrEmpty(e.payload.target) ? e.player_id : e.payload.target;
+        string targetId = string.IsNullOrEmpty(gameEvent.payload.target) ? gameEvent.player_id : gameEvent.payload.target;
         Transform affected = positionClient.CapsuleOf(targetId);
 
-        switch (e.type)
+        switch (gameEvent.type)
         {
             case ProjectileFired:
-                bool isMine = eventClient != null && e.player_id == eventClient.MyId;
+                bool isMine = eventClient != null && gameEvent.player_id == eventClient.MyId;
                 StartCoroutine(ProjectileRoutine(origin,
-                    new Vector3(e.payload.dx, e.payload.dy, e.payload.dz), isMine));
+                    new Vector3(gameEvent.payload.dx, gameEvent.payload.dy, gameEvent.payload.dz), isMine));
                 break;
 
             case ShieldRaised:
@@ -118,11 +118,11 @@ public class ArenaEvents : MonoBehaviour
                 break;
 
             default:
-                Debug.LogWarning($"Evento desconocido: {e.type}");
+                Debug.LogWarning($"Evento desconocido: {gameEvent.type}");
                 break;
         }
 
-        _lastEvent = $"seq {e.seq}  {e.type}  de {e.player_id}";
+        _lastEvent = $"seq {gameEvent.seq}  {gameEvent.type}  de {gameEvent.player_id}";
     }
 
     IEnumerator ProjectileRoutine(Vector3 since, Vector3 direction, bool authoritative)
@@ -140,8 +140,8 @@ public class ArenaEvents : MonoBehaviour
         string victimId = positionClient.remotePlayerId;
         Transform victim = positionClient.RemotePlayer;
 
-        float t = 0f;
-        while (t < projectileLifetime && ball != null)
+        float elapsed = 0f;
+        while (elapsed < projectileLifetime && ball != null)
         {
             ball.transform.position += direction * (projectileSpeed * Time.deltaTime);
 
@@ -152,7 +152,7 @@ public class ArenaEvents : MonoBehaviour
                 break;
             }
 
-            t += Time.deltaTime;
+            elapsed += Time.deltaTime;
             yield return null;
         }
 
@@ -167,12 +167,12 @@ public class ArenaEvents : MonoBehaviour
         Destroy(sphere.GetComponent<Collider>());
         Paint(sphere, new Color(0.3f, 0.85f, 1f, 0.3f), true);
 
-        float t = 0f;
-        while (t < shieldDuration && sphere != null)
+        float elapsed = 0f;
+        while (elapsed < shieldDuration && sphere != null)
         {
             if (subject != null) sphere.transform.position = subject.position;
             sphere.transform.Rotate(Vector3.up, 90f * Time.deltaTime);
-            t += Time.deltaTime;
+            elapsed += Time.deltaTime;
             yield return null;
         }
 
@@ -189,14 +189,14 @@ public class ArenaEvents : MonoBehaviour
         if (hasColor) original = render.material.GetColor("_BaseColor");
 
         Vector3 originalScale = subject.localScale;
-        float t = 0f;
+        float elapsed = 0f;
 
-        while (t < hitDuration && subject != null)
+        while (elapsed < hitDuration && subject != null)
         {
-            float p = Mathf.PingPong(t * 10f, 1f);
-            if (hasColor) render.material.SetColor("_BaseColor", Color.Lerp(original, Color.white, p));
-            subject.localScale = originalScale * (1f - 0.25f * Mathf.Sin(t / hitDuration * Mathf.PI));
-            t += Time.deltaTime;
+            float pulse = Mathf.PingPong(elapsed * 10f, 1f);
+            if (hasColor) render.material.SetColor("_BaseColor", Color.Lerp(original, Color.white, pulse));
+            subject.localScale = originalScale * (1f - 0.25f * Mathf.Sin(elapsed / hitDuration * Mathf.PI));
+            elapsed += Time.deltaTime;
             yield return null;
         }
 
@@ -206,7 +206,7 @@ public class ArenaEvents : MonoBehaviour
         _beingHit.Remove(subject);
     }
 
-    static void Paint(GameObject obj, Color color, bool translucent)
+    static void Paint(GameObject shape, Color color, bool translucent)
     {
         var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
         if (shader == null) return;
@@ -225,7 +225,7 @@ public class ArenaEvents : MonoBehaviour
             mat.renderQueue = (int)RenderQueue.Transparent;
         }
 
-        obj.GetComponent<Renderer>().material = mat;
+        shape.GetComponent<Renderer>().material = mat;
     }
 
     void OnGUI()

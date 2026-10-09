@@ -7,13 +7,18 @@ montada en `Assets/Scenes/EscenaArena.unity`; esto documenta qué hay dentro y p
 
 | Archivo | Qué hace |
 |---|---|
-| `PositionData.cs` | Cuerpo JSON del servicio de referencia (`posX`, `posY`, `posZ`) |
-| `PositionSyncClient.cs` | **Parte 1.** Publica la posición propia y consulta la remota, cada una en su corrutina |
-| `PlayerController.cs` | Movimiento del jugador local con WASD, relativo a la cámara |
-| `EventDtos.cs` | Cuerpos JSON del servicio de eventos |
-| `EventClient.cs` | **Parte 2.** Envía eventos por una cola y consulta los nuevos con `since` |
-| `ArenaEvents.cs` | **Parte 2.** Traduce teclas en eventos y eventos en reacciones visibles |
-| `ExperimentRunner.cs` | Experimentos A, B y C, con salida a CSV |
+Están en `Assets/Scripts/`, repartidos por funcionalidad.
+
+| Archivo | Qué hace |
+|---|---|
+| `Networking/PositionData.cs` | Cuerpo JSON del servicio de referencia (`posX`, `posY`, `posZ`) |
+| `Networking/PositionSyncClient.cs` | **Parte 1.** Publica la posición propia y consulta la remota, cada una en su corrutina |
+| `Networking/EventDtos.cs` | Cuerpos JSON del servicio de eventos |
+| `Networking/EventClient.cs` | **Parte 2.** Envía eventos por una cola y consulta los nuevos con `since` |
+| `Gameplay/PlayerController.cs` | Movimiento del jugador local con WASD, relativo a la cámara |
+| `Gameplay/ArenaEvents.cs` | **Parte 2.** Traduce teclas en eventos y eventos en reacciones visibles |
+| `Experiments/ExperimentRunner.cs` | Experimentos A, B y C, con salida a CSV |
+| `Ui/Hud.cs` | Escalado de fuente, estilos y fondo de los textos en pantalla |
 
 ## Escena
 

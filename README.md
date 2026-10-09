@@ -11,8 +11,9 @@ Sincronización entre dos instancias de Unity por **sondeo periódico (polling)*
 
 | Carpeta | Qué es |
 |---|---|
-| `event-service/` | Servicio de eventos de la Parte 2 (Flask + Docker) |
+| `event-service/` | Servicio de eventos de la Parte 2 (Flask + Docker): `app.py` arranca, `schemas.py` valida y `resources/events.py` sirve las rutas |
 | `unity-client/` | Proyecto Unity con los clientes de las partes 1 y 2 |
+| `unity-client/Assets/Scripts/` | `Networking/`, `Gameplay/`, `Experiments/` y `Ui/` |
 | `unity-client/MONTAJE.md` | Cómo está armada la escena y cómo se corren los experimentos |
 
 El servicio de referencia de la Parte 1 **no está aquí**: es el del profesor, se clona aparte (ver abajo).

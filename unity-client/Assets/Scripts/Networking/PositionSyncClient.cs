@@ -100,10 +100,10 @@ public class PositionSyncClient : MonoBehaviour
 
             string name = args[i + 1];
             if (!name.StartsWith(prefix)) continue;
-            if (!int.TryParse(name.Substring(prefix.Length), out int n)) continue;
+            if (!int.TryParse(name.Substring(prefix.Length), out int playerNumber)) continue;
 
-            localPlayerId = $"p{n}";
-            remotePlayerId = n == 1 ? "p2" : "p1";
+            localPlayerId = $"p{playerNumber}";
+            remotePlayerId = playerNumber == 1 ? "p2" : "p1";
             return;
         }
     }
@@ -111,8 +111,8 @@ public class PositionSyncClient : MonoBehaviour
     static int PlayerNumberOf(string playerId)
     {
         if (playerId != null && playerId.Length > 1 &&
-            int.TryParse(playerId.Substring(1), out int n))
-            return n;
+            int.TryParse(playerId.Substring(1), out int playerNumber))
+            return playerNumber;
         return 1;
     }
 

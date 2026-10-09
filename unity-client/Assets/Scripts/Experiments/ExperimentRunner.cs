@@ -90,23 +90,23 @@ public class ExperimentRunner : MonoBehaviour
         if (_observingB) _observed.Add(Mathf.RoundToInt(pos.x));
     }
 
-    void HandleEvent(GameEvent e)
+    void HandleEvent(GameEvent gameEvent)
     {
-        if (_observingC && e.type == EventTypeC) _receivedC.Add(e);
+        if (_observingC && gameEvent.type == EventTypeC) _receivedC.Add(gameEvent);
     }
 
     void Update()
     {
         if (_busy) return;
 
-        var kb = Keyboard.current;
-        if (kb == null) return;
+        var keyboard = Keyboard.current;
+        if (keyboard == null) return;
 
-        if (kb[keyExperimentA].wasPressedThisFrame) StartCoroutine(RunExperimentA());
-        else if (kb[keyEmitB].wasPressedThisFrame) StartCoroutine(RunExperimentBEmitter());
-        else if (kb[keyObserveB].wasPressedThisFrame) StartCoroutine(RunExperimentBObserver());
-        else if (kb[keyEmitC].wasPressedThisFrame) StartCoroutine(RunExperimentCEmitter());
-        else if (kb[keyObserveC].wasPressedThisFrame) StartCoroutine(RunExperimentCObserver());
+        if (keyboard[keyExperimentA].wasPressedThisFrame) StartCoroutine(RunExperimentA());
+        else if (keyboard[keyEmitB].wasPressedThisFrame) StartCoroutine(RunExperimentBEmitter());
+        else if (keyboard[keyObserveB].wasPressedThisFrame) StartCoroutine(RunExperimentBObserver());
+        else if (keyboard[keyEmitC].wasPressedThisFrame) StartCoroutine(RunExperimentCEmitter());
+        else if (keyboard[keyObserveC].wasPressedThisFrame) StartCoroutine(RunExperimentCObserver());
     }
 
     IEnumerator RunExperimentA()
@@ -140,17 +140,17 @@ public class ExperimentRunner : MonoBehaviour
         double min = _rttSamples.Min();
         double max = _rttSamples.Max();
 
-        var sb = new StringBuilder();
-        sb.AppendLine("# Experimento A: latencia y carga");
-        sb.AppendLine($"# jugador={client.localPlayerId} dt_ms={dt} muestras={_rttSamples.Count}");
-        sb.AppendLine($"# rtt_promedio_ms={F(avg)} rtt_min_ms={F(min)} rtt_max_ms={F(max)}");
-        sb.AppendLine($"# duracion_s={F(elapsed)} peticiones_esta_instancia={requests} peticiones_por_s_esta_instancia={F(instanceRate)}");
-        sb.AppendLine("# El total del sistema es la suma de las dos instancias.");
-        sb.AppendLine("muestra,rtt_ms");
+        var csv = new StringBuilder();
+        csv.AppendLine("# Experimento A: latencia y carga");
+        csv.AppendLine($"# jugador={client.localPlayerId} dt_ms={dt} muestras={_rttSamples.Count}");
+        csv.AppendLine($"# rtt_promedio_ms={F(avg)} rtt_min_ms={F(min)} rtt_max_ms={F(max)}");
+        csv.AppendLine($"# duracion_s={F(elapsed)} peticiones_esta_instancia={requests} peticiones_por_s_esta_instancia={F(instanceRate)}");
+        csv.AppendLine("# El total del sistema es la suma de las dos instancias.");
+        csv.AppendLine("muestra,rtt_ms");
         for (int i = 0; i < _rttSamples.Count; i++)
-            sb.AppendLine($"{i + 1},{F(_rttSamples[i])}");
+            csv.AppendLine($"{i + 1},{F(_rttSamples[i])}");
 
-        string file = Write($"expA_dt{dt}_{client.localPlayerId}.csv", sb.ToString());
+        string file = Write($"expA_dt{dt}_{client.localPlayerId}.csv", csv.ToString());
 
         _status = $"Experimento A terminado (dt = {dt} ms): RTT promedio {avg:F2} ms, " +
                   $"{instanceRate:F1} pet/s en esta instancia. Guardado en {file}";
@@ -171,10 +171,10 @@ public class ExperimentRunner : MonoBehaviour
         float interval = emitIntervalMs / 1000f;
         var emitted = new List<int>();
 
-        for (int v = 1; v <= valuesB; v++)
+        for (int posValue = 1; posValue <= valuesB; posValue++)
         {
-            client.PositionOverride = new Vector3(v, 1f, 0f);
-            emitted.Add(v);
+            client.PositionOverride = new Vector3(posValue, 1f, 0f);
+            emitted.Add(posValue);
             yield return new WaitForSeconds(interval);
         }
 
@@ -236,18 +236,18 @@ public class ExperimentRunner : MonoBehaviour
         _observingB = false;
 
         var sequence = SequenceValues();
-        var distinctValues = sequence.Distinct().OrderBy(v => v).ToList();
+        var distinctValues = sequence.Distinct().OrderBy(posValue => posValue).ToList();
 
-        var sb = new StringBuilder();
-        sb.AppendLine("# Experimento B: muestreo de posiciones");
-        sb.AppendLine($"# jugador={client.localPlayerId} dt_ms={dt} emitidos={valuesB} intervalo_emision_ms={emitIntervalMs}");
-        sb.AppendLine($"# lecturas_totales={sequence.Count} valores_distintos={distinctValues.Count}");
-        sb.AppendLine($"# valores_vistos={string.Join(" ", distinctValues)}");
-        sb.AppendLine("lectura,posX");
+        var csv = new StringBuilder();
+        csv.AppendLine("# Experimento B: muestreo de posiciones");
+        csv.AppendLine($"# jugador={client.localPlayerId} dt_ms={dt} emitidos={valuesB} intervalo_emision_ms={emitIntervalMs}");
+        csv.AppendLine($"# lecturas_totales={sequence.Count} valores_distintos={distinctValues.Count}");
+        csv.AppendLine($"# valores_vistos={string.Join(" ", distinctValues)}");
+        csv.AppendLine("lectura,posX");
         for (int i = 0; i < sequence.Count; i++)
-            sb.AppendLine($"{i + 1},{sequence[i]}");
+            csv.AppendLine($"{i + 1},{sequence[i]}");
 
-        string file = Write($"expB_dt{dt}_{client.localPlayerId}.csv", sb.ToString());
+        string file = Write($"expB_dt{dt}_{client.localPlayerId}.csv", csv.ToString());
 
         _status = $"Experimento B terminado (dt = {dt} ms): {distinctValues.Count} de {valuesB} " +
                   $"valores distintos observados. Guardado en {file}";
@@ -343,24 +343,24 @@ public class ExperimentRunner : MonoBehaviour
 
         _observingC = false;
 
-        var seqs = _receivedC.Select(e => e.seq).ToList();
-        var indexes = _receivedC.Select(e => e.payload.n).ToList();
+        var seqs = _receivedC.Select(gameEvent => gameEvent.seq).ToList();
+        var indexes = _receivedC.Select(gameEvent => gameEvent.payload.sequenceIndex).ToList();
         bool inOrder = seqs.SequenceEqual(seqs.OrderBy(s => s));
         int duplicates = seqs.Count - seqs.Distinct().Count();
 
-        var sb = new StringBuilder();
-        sb.AppendLine("# Experimento C: propagacion de eventos");
-        sb.AppendLine($"# jugador={eventClient.MyId} dt_ms={dt} emitidos={valuesC} intervalo_emision_ms={emitIntervalMs}");
-        sb.AppendLine($"# recibidos={seqs.Count} en_orden={inOrder} repetidos={duplicates}");
-        sb.AppendLine($"# indices_recibidos={string.Join(" ", indexes)}");
-        sb.AppendLine("orden_llegada,seq,indice,player_id,timestamp");
+        var csv = new StringBuilder();
+        csv.AppendLine("# Experimento C: propagacion de eventos");
+        csv.AppendLine($"# jugador={eventClient.MyId} dt_ms={dt} emitidos={valuesC} intervalo_emision_ms={emitIntervalMs}");
+        csv.AppendLine($"# recibidos={seqs.Count} en_orden={inOrder} repetidos={duplicates}");
+        csv.AppendLine($"# indices_recibidos={string.Join(" ", indexes)}");
+        csv.AppendLine("orden_llegada,seq,indice,player_id,timestamp");
         for (int i = 0; i < _receivedC.Count; i++)
         {
-            var e = _receivedC[i];
-            sb.AppendLine($"{i + 1},{e.seq},{e.payload.n},{e.player_id},{e.timestamp}");
+            var gameEvent = _receivedC[i];
+            csv.AppendLine($"{i + 1},{gameEvent.seq},{gameEvent.payload.sequenceIndex},{gameEvent.player_id},{gameEvent.timestamp}");
         }
 
-        string file = Write($"expC_dt{dt}_{eventClient.MyId}.csv", sb.ToString());
+        string file = Write($"expC_dt{dt}_{eventClient.MyId}.csv", csv.ToString());
 
         _status = $"Experimento C terminado (dt = {dt} ms): {seqs.Count} de {valuesC} eventos, " +
                   $"en orden = {inOrder}, repetidos = {duplicates}. Guardado en {file}";
@@ -372,7 +372,7 @@ public class ExperimentRunner : MonoBehaviour
 
     List<int> SequenceValues()
     {
-        return _observed.Where(v => v >= 1 && v <= valuesB).ToList();
+        return _observed.Where(posValue => posValue >= 1 && posValue <= valuesB).ToList();
     }
 
     void ApplyMeasurementSettings()
@@ -388,7 +388,7 @@ public class ExperimentRunner : MonoBehaviour
         Application.targetFrameRate = -1;
     }
 
-    static string F(double v) => v.ToString("F3", CultureInfo.InvariantCulture);
+    static string F(double posValue) => posValue.ToString("F3", CultureInfo.InvariantCulture);
 
     string Write(string fileName, string content)
     {
@@ -403,9 +403,9 @@ public class ExperimentRunner : MonoBehaviour
             File.WriteAllText(path, content, Encoding.UTF8);
             return path;
         }
-        catch (Exception e)
+        catch (Exception gameEvent)
         {
-            Debug.LogError($"No se pudo escribir {fileName} en {folder}: {e.Message}");
+            Debug.LogError($"No se pudo escribir {fileName} en {folder}: {gameEvent.Message}");
             return "(no se pudo guardar)";
         }
     }
@@ -413,14 +413,14 @@ public class ExperimentRunner : MonoBehaviour
     void OnGUI()
     {
         int size = Hud.FontSize(0.024f, 13);
-        float h = size * 3f;
+        float panelHeight = size * 3f;
 
         var style = Hud.Label(size, Color.yellow, wordWrap: true);
 
-        var box = new Rect(0, Screen.height - h, Screen.width, h);
+        var box = new Rect(0, Screen.height - panelHeight, Screen.width, panelHeight);
         Hud.Backdrop(box, 0.6f);
 
-        GUI.Label(new Rect(size * 0.8f, Screen.height - h + size * 0.4f,
-                           Screen.width - size * 1.6f, h), _status, style);
+        GUI.Label(new Rect(size * 0.8f, Screen.height - panelHeight + size * 0.4f,
+                           Screen.width - size * 1.6f, panelHeight), _status, style);
     }
 }

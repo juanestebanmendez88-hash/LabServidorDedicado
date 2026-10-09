@@ -1,11 +1,14 @@
 using System;
 
+// Los campos en snake_case replican las claves JSON del servicio: JsonUtility
+// usa el nombre del campo tal cual.
+
 [Serializable]
 public class EventPayload
 {
     public float x, y, z;
     public float dx, dy, dz;
-    public int n;
+    public int sequenceIndex;
 
     public string target;
 }
