@@ -130,7 +130,7 @@ def test_incremental_polling_receives_each_event_once(client):
     received, since = [], 0
     for i in range(20):
         post(client, type_=f"E{i}")
-        if i % 7 == 6:  # el cliente consulta cada 7 eventos
+        if i % 7 == 6:
             body = client.get(f"/games/g1/events?since={since}").get_json()
             received += [e["seq"] for e in body["events"]]
             since = body["events"][-1]["seq"]

@@ -1,33 +1,14 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Collections;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using UnityEngine;
+using System;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
+using UnityEngine;
 
-/// <summary>
-/// Ejecuta los experimentos A, B y C y guarda los resultados en CSV.
-///
-///   F1  Experimento A: registra 100 RTT del GET con el dt configurado.
-///   F2  Experimento B, emisor: publica posX = 1..20, uno cada 20 ms.
-///   F3  Experimento B, observador: cuenta cuantos valores distintos ve.
-///   F4  Experimento C, emisor: envia 20 eventos, uno cada 20 ms.
-///   F5  Experimento C, observador: cuenta eventos, orden y repeticiones.
-///
-/// Los experimentos B y C necesitan las dos instancias: en una se pulsa la
-/// tecla de observar y enseguida en la otra la de emitir. B mide el servicio
-/// de posiciones y C el de eventos, con el mismo dt, para que la comparacion
-/// entre ambos sea valida.
-///
-/// Sobre la medicion: las corrutinas de Unity se reanudan una vez por fotograma,
-/// asi que cualquier espera se redondea al alza hasta el siguiente fotograma. A
-/// 60 FPS eso son ~16,7 ms, lo que haria imposible emitir cada 20 ms y
-/// distorsionaria un dt de 50 ms. Por eso, al arrancar un experimento se
-/// desactiva el VSync y se eleva la tasa de fotogramas objetivo.
-/// </summary>
 public class ExperimentRunner : MonoBehaviour
 {
     [Header("Referencias")]
@@ -57,7 +38,8 @@ public class ExperimentRunner : MonoBehaviour
 
     [Tooltip("Segundos que la instancia observadora espera a que empiece la emision, " +
              "para dar tiempo de cambiar de ventana y pulsar F2.")]
-    public float esperaInicioSegundos = 60f;
+    [FormerlySerializedAs("esperaInicioSegundos")]
+    public float startWaitSeconds = 60f;
 
     [Header("Teclas")]
     public Key keyExperimentA = Key.F1;
@@ -66,10 +48,9 @@ public class ExperimentRunner : MonoBehaviour
     public Key keyEmitC = Key.F4;
     public Key keyObserveC = Key.F5;
 
-    // Estado de la recoleccion
     readonly List<double> _rttSamples = new List<double>();
     readonly List<int> _observed = new List<int>();
-    readonly List<GameEvent> _recibidosC = new List<GameEvent>();
+    readonly List<GameEvent> _receivedC = new List<GameEvent>();
     bool _collectingA;
     bool _observingB;
     bool _observingC;
@@ -106,17 +87,12 @@ public class ExperimentRunner : MonoBehaviour
 
     void HandleRemotePosition(Vector3 pos)
     {
-        // El emisor publica valores enteros en posX, asi que se redondea para
-        // identificarlos sin que el error de coma flotante los multiplique.
         if (_observingB) _observed.Add(Mathf.RoundToInt(pos.x));
     }
 
     void HandleEvent(GameEvent e)
     {
-        // Solo cuentan los eventos de la secuencia del experimento, marcados
-        // con el tipo ExpC. Los de Arena que se disparen por teclado no
-        // forman parte de la medicion.
-        if (_observingC && e.type == TipoEventoC) _recibidosC.Add(e);
+        if (_observingC && e.type == EventTypeC) _receivedC.Add(e);
     }
 
     void Update()
@@ -132,8 +108,6 @@ public class ExperimentRunner : MonoBehaviour
         else if (kb[keyEmitC].wasPressedThisFrame) StartCoroutine(RunExperimentCEmitter());
         else if (kb[keyObserveC].wasPressedThisFrame) StartCoroutine(RunExperimentCObserver());
     }
-
-    // ---------- Experimento A ----------
 
     IEnumerator RunExperimentA()
     {
@@ -186,8 +160,6 @@ public class ExperimentRunner : MonoBehaviour
         _busy = false;
     }
 
-    // ---------- Experimento B ----------
-
     IEnumerator RunExperimentBEmitter()
     {
         _busy = true;
@@ -201,14 +173,11 @@ public class ExperimentRunner : MonoBehaviour
 
         for (int v = 1; v <= valuesB; v++)
         {
-            // Se fuerza el valor publicado: posX recorre 1..20 mientras el
-            // resto de la posicion se mantiene fijo.
             client.PositionOverride = new Vector3(v, 1f, 0f);
             emitted.Add(v);
             yield return new WaitForSeconds(interval);
         }
 
-        // Se deja un margen para que el observador alcance a consultar lo ultimo.
         yield return new WaitForSeconds(2f);
         client.PositionOverride = null;
 
@@ -229,19 +198,15 @@ public class ExperimentRunner : MonoBehaviour
         _observed.Clear();
         _observingB = true;
 
-        // Fase 1: esperar a que la otra instancia empiece a emitir. La emision
-        // dura menos de medio segundo, asi que una ventana fija obligaria a
-        // cambiar de ventana y pulsar F2 en ese tiempo. En vez de eso se espera
-        // sin prisa a ver el primer valor de la secuencia.
-        float limite = Time.realtimeSinceStartup + esperaInicioSegundos;
-        while (Time.realtimeSinceStartup < limite && ValoresDeLaSecuencia().Count == 0)
+        float deadline = Time.realtimeSinceStartup + startWaitSeconds;
+        while (Time.realtimeSinceStartup < deadline && SequenceValues().Count == 0)
         {
             _status = $"Experimento B (dt = {dt} ms): esperando la emision. " +
-                      $"Pulsa F2 en la OTRA ventana. Quedan {limite - Time.realtimeSinceStartup:F0} s";
+                      $"Pulsa F2 en la OTRA ventana. Quedan {deadline - Time.realtimeSinceStartup:F0} s";
             yield return null;
         }
 
-        if (ValoresDeLaSecuencia().Count == 0)
+        if (SequenceValues().Count == 0)
         {
             _observingB = false;
             _status = "Experimento B cancelado: no llego ningun valor. Pulsa F3 aqui " +
@@ -252,42 +217,39 @@ public class ExperimentRunner : MonoBehaviour
             yield break;
         }
 
-        // Fase 2: seguir observando mientras sigan llegando valores nuevos. Se
-        // corta cuando pasa un rato sin novedad, con margen suficiente para no
-        // cortar entre dos consultas cuando dt es grande.
-        float silencio = Mathf.Max(3f, dt / 1000f * 4f);
-        float ultimoCambio = Time.realtimeSinceStartup;
-        int vistos = ValoresDeLaSecuencia().Distinct().Count();
+        float silenceWindow = Mathf.Max(3f, dt / 1000f * 4f);
+        float lastChange = Time.realtimeSinceStartup;
+        int seen = SequenceValues().Distinct().Count();
 
-        while (Time.realtimeSinceStartup - ultimoCambio < silencio)
+        while (Time.realtimeSinceStartup - lastChange < silenceWindow)
         {
-            int ahora = ValoresDeLaSecuencia().Distinct().Count();
-            if (ahora != vistos)
+            int now = SequenceValues().Distinct().Count();
+            if (now != seen)
             {
-                vistos = ahora;
-                ultimoCambio = Time.realtimeSinceStartup;
+                seen = now;
+                lastChange = Time.realtimeSinceStartup;
             }
-            _status = $"Experimento B (dt = {dt} ms): {vistos} valores distintos de {valuesB}...";
+            _status = $"Experimento B (dt = {dt} ms): {seen} valores distintos de {valuesB}...";
             yield return null;
         }
 
         _observingB = false;
 
-        var deLaSecuencia = ValoresDeLaSecuencia();
-        var distintos = deLaSecuencia.Distinct().OrderBy(v => v).ToList();
+        var sequence = SequenceValues();
+        var distinctValues = sequence.Distinct().OrderBy(v => v).ToList();
 
         var sb = new StringBuilder();
         sb.AppendLine("# Experimento B: muestreo de posiciones");
         sb.AppendLine($"# jugador={client.localPlayerId} dt_ms={dt} emitidos={valuesB} intervalo_emision_ms={emitIntervalMs}");
-        sb.AppendLine($"# lecturas_totales={deLaSecuencia.Count} valores_distintos={distintos.Count}");
-        sb.AppendLine($"# valores_vistos={string.Join(" ", distintos)}");
+        sb.AppendLine($"# lecturas_totales={sequence.Count} valores_distintos={distinctValues.Count}");
+        sb.AppendLine($"# valores_vistos={string.Join(" ", distinctValues)}");
         sb.AppendLine("lectura,posX");
-        for (int i = 0; i < deLaSecuencia.Count; i++)
-            sb.AppendLine($"{i + 1},{deLaSecuencia[i]}");
+        for (int i = 0; i < sequence.Count; i++)
+            sb.AppendLine($"{i + 1},{sequence[i]}");
 
         string file = Write($"expB_dt{dt}_{client.localPlayerId}.csv", sb.ToString());
 
-        _status = $"Experimento B terminado (dt = {dt} ms): {distintos.Count} de {valuesB} " +
+        _status = $"Experimento B terminado (dt = {dt} ms): {distinctValues.Count} de {valuesB} " +
                   $"valores distintos observados. Guardado en {file}";
         Debug.Log(_status);
 
@@ -295,10 +257,7 @@ public class ExperimentRunner : MonoBehaviour
         _busy = false;
     }
 
-    // ---------- Experimento C ----------
-
-    /// <summary>Tipo con el que se marcan los eventos de la medicion.</summary>
-    public const string TipoEventoC = "ExpC";
+    public const string EventTypeC = "ExpC";
 
     IEnumerator RunExperimentCEmitter()
     {
@@ -315,15 +274,13 @@ public class ExperimentRunner : MonoBehaviour
         _status = $"Experimento C: enviando {valuesC} eventos, uno cada {emitIntervalMs} ms...";
         Debug.Log(_status);
 
-        float intervalo = emitIntervalMs / 1000f;
+        float waitInterval = emitIntervalMs / 1000f;
         for (int i = 1; i <= valuesC; i++)
         {
-            eventClient.Enviar(TipoEventoC, Vector3.zero, Vector3.zero, i);
-            yield return new WaitForSeconds(intervalo);
+            eventClient.Send(EventTypeC, Vector3.zero, Vector3.zero, i);
+            yield return new WaitForSeconds(waitInterval);
         }
 
-        // Los envios salen de la cola de uno en uno, asi que se espera a que
-        // se vacie antes de dar por terminada la emision.
         while (eventClient.PendingSends > 0) yield return null;
 
         _status = $"Experimento C: {valuesC} eventos enviados. " +
@@ -346,24 +303,19 @@ public class ExperimentRunner : MonoBehaviour
         _busy = true;
         ApplyMeasurementSettings();
 
-        // El dt que se reporta es el que el cliente de eventos esta usando de
-        // verdad, no el del cliente de posiciones: si fueran distintos, el CSV
-        // quedaria etiquetado con un intervalo que no es el que se midio.
-        int dt = eventClient.DeltaEfectivoMs;
-        _recibidosC.Clear();
+        int dt = eventClient.EffectiveDeltaMs;
+        _receivedC.Clear();
         _observingC = true;
 
-        // Igual que en B: se espera sin prisa a que empiece la emision, para
-        // dar tiempo de cambiar de ventana.
-        float limite = Time.realtimeSinceStartup + esperaInicioSegundos;
-        while (Time.realtimeSinceStartup < limite && _recibidosC.Count == 0)
+        float deadline = Time.realtimeSinceStartup + startWaitSeconds;
+        while (Time.realtimeSinceStartup < deadline && _receivedC.Count == 0)
         {
             _status = $"Experimento C (dt = {dt} ms): esperando los eventos. " +
-                      $"Pulsa F4 en la OTRA ventana. Quedan {limite - Time.realtimeSinceStartup:F0} s";
+                      $"Pulsa F4 en la OTRA ventana. Quedan {deadline - Time.realtimeSinceStartup:F0} s";
             yield return null;
         }
 
-        if (_recibidosC.Count == 0)
+        if (_receivedC.Count == 0)
         {
             _observingC = false;
             _status = "Experimento C cancelado: no llego ningun evento. Pulsa F5 aqui " +
@@ -374,60 +326,51 @@ public class ExperimentRunner : MonoBehaviour
             yield break;
         }
 
-        float silencio = Mathf.Max(3f, dt / 1000f * 4f);
-        float ultimoCambio = Time.realtimeSinceStartup;
-        int vistos = _recibidosC.Count;
+        float silenceWindow = Mathf.Max(3f, dt / 1000f * 4f);
+        float lastChange = Time.realtimeSinceStartup;
+        int seen = _receivedC.Count;
 
-        while (Time.realtimeSinceStartup - ultimoCambio < silencio)
+        while (Time.realtimeSinceStartup - lastChange < silenceWindow)
         {
-            if (_recibidosC.Count != vistos)
+            if (_receivedC.Count != seen)
             {
-                vistos = _recibidosC.Count;
-                ultimoCambio = Time.realtimeSinceStartup;
+                seen = _receivedC.Count;
+                lastChange = Time.realtimeSinceStartup;
             }
-            _status = $"Experimento C (dt = {dt} ms): {vistos} eventos de {valuesC}...";
+            _status = $"Experimento C (dt = {dt} ms): {seen} eventos de {valuesC}...";
             yield return null;
         }
 
         _observingC = false;
 
-        // Las tres propiedades que pide la guia: cuantos llegaron, si venian en
-        // orden y si alguno se repitio.
-        var seqs = _recibidosC.Select(e => e.seq).ToList();
-        var indices = _recibidosC.Select(e => e.payload.n).ToList();
-        bool enOrden = seqs.SequenceEqual(seqs.OrderBy(s => s));
-        int repetidos = seqs.Count - seqs.Distinct().Count();
+        var seqs = _receivedC.Select(e => e.seq).ToList();
+        var indexes = _receivedC.Select(e => e.payload.n).ToList();
+        bool inOrder = seqs.SequenceEqual(seqs.OrderBy(s => s));
+        int duplicates = seqs.Count - seqs.Distinct().Count();
 
         var sb = new StringBuilder();
         sb.AppendLine("# Experimento C: propagacion de eventos");
-        sb.AppendLine($"# jugador={eventClient.MiId} dt_ms={dt} emitidos={valuesC} intervalo_emision_ms={emitIntervalMs}");
-        sb.AppendLine($"# recibidos={seqs.Count} en_orden={enOrden} repetidos={repetidos}");
-        sb.AppendLine($"# indices_recibidos={string.Join(" ", indices)}");
+        sb.AppendLine($"# jugador={eventClient.MyId} dt_ms={dt} emitidos={valuesC} intervalo_emision_ms={emitIntervalMs}");
+        sb.AppendLine($"# recibidos={seqs.Count} en_orden={inOrder} repetidos={duplicates}");
+        sb.AppendLine($"# indices_recibidos={string.Join(" ", indexes)}");
         sb.AppendLine("orden_llegada,seq,indice,player_id,timestamp");
-        for (int i = 0; i < _recibidosC.Count; i++)
+        for (int i = 0; i < _receivedC.Count; i++)
         {
-            var e = _recibidosC[i];
+            var e = _receivedC[i];
             sb.AppendLine($"{i + 1},{e.seq},{e.payload.n},{e.player_id},{e.timestamp}");
         }
 
-        string file = Write($"expC_dt{dt}_{eventClient.MiId}.csv", sb.ToString());
+        string file = Write($"expC_dt{dt}_{eventClient.MyId}.csv", sb.ToString());
 
         _status = $"Experimento C terminado (dt = {dt} ms): {seqs.Count} de {valuesC} eventos, " +
-                  $"en orden = {enOrden}, repetidos = {repetidos}. Guardado en {file}";
+                  $"en orden = {inOrder}, repetidos = {duplicates}. Guardado en {file}";
         Debug.Log(_status);
 
         RestoreSettings();
         _busy = false;
     }
 
-    // ---------- Utilidades ----------
-
-    /// <summary>
-    /// Lecturas que pertenecen a la secuencia emitida (1..valuesB). Las demas
-    /// corresponden a la posicion real del jugador antes de que empezara la
-    /// emision y no forman parte del experimento.
-    /// </summary>
-    List<int> ValoresDeLaSecuencia()
+    List<int> SequenceValues()
     {
         return _observed.Where(v => v >= 1 && v <= valuesB).ToList();
     }
@@ -437,9 +380,6 @@ public class ExperimentRunner : MonoBehaviour
         QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = experimentFrameRate;
 
-        // Durante el experimento B hay que hacer clic en la otra ventana para
-        // lanzar la emision, con lo que esta pierde el foco. Sin esto, Unity
-        // la congelaria y dejaria de sondear justo mientras mide.
         Application.runInBackground = true;
     }
 
@@ -448,15 +388,10 @@ public class ExperimentRunner : MonoBehaviour
         Application.targetFrameRate = -1;
     }
 
-    /// <summary>Formatea con punto decimal, para que el CSV no dependa de la cultura del sistema.</summary>
     static string F(double v) => v.ToString("F3", CultureInfo.InvariantCulture);
 
     string Write(string fileName, string content)
     {
-        // Application.dataPath es <repo>/unity-client/Assets en el editor, que es donde
-        // se corren los experimentos, asi que dos niveles arriba esta la raiz del
-        // repositorio. Se resuelve en tiempo de ejecucion para no fijar en el proyecto
-        // una ruta absoluta de la maquina donde se desarrollo.
         string folder = string.IsNullOrWhiteSpace(outputFolder)
             ? Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "resultados"))
             : outputFolder;
@@ -477,20 +412,13 @@ public class ExperimentRunner : MonoBehaviour
 
     void OnGUI()
     {
-        int size = Mathf.Max(13, Mathf.RoundToInt(Screen.height * 0.024f));
+        int size = Hud.FontSize(0.024f, 13);
         float h = size * 3f;
 
-        var style = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = size,
-            wordWrap = true,
-            normal = { textColor = Color.yellow }
-        };
+        var style = Hud.Label(size, Color.yellow, wordWrap: true);
 
         var box = new Rect(0, Screen.height - h, Screen.width, h);
-        GUI.color = new Color(0f, 0f, 0f, 0.6f);
-        GUI.DrawTexture(box, Texture2D.whiteTexture);
-        GUI.color = Color.white;
+        Hud.Backdrop(box, 0.6f);
 
         GUI.Label(new Rect(size * 0.8f, Screen.height - h + size * 0.4f,
                            Screen.width - size * 1.6f, h), _status, style);

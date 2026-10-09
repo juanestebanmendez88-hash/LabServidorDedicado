@@ -1,29 +1,10 @@
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
+using System.Collections;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
+using UnityEngine.Serialization;
+using UnityEngine;
 
-/// <summary>
-/// Escenario 1 del laboratorio, Arena. Traduce las teclas en eventos y los
-/// eventos recibidos en una reaccion visible.
-///
-///   Espacio  ProjectileFired  dispara una esfera hacia el otro jugador
-///   E        ShieldRaised     envuelve a quien lo lanza en un escudo
-///
-/// PlayerHit no tiene tecla: lo emite el propio proyectil al alcanzar a
-/// alguien, y recae sobre el alcanzado y no sobre quien disparo. Solo la
-/// instancia que disparo decide si hubo impacto: si las dos lo decidieran, el
-/// mismo golpe se registraria dos veces.
-///
-/// Las reacciones se disparan desde el evento recibido y no desde la tecla,
-/// incluso para los eventos propios. Asi las dos ventanas reproducen lo mismo
-/// a partir de la misma fuente, y "una sola vez" queda garantizado por el
-/// filtro 'since' del servicio y no por logica del cliente.
-///
-/// Las formas se crean en tiempo de ejecucion para que la escena no necesite
-/// prefabs ni montaje adicional.
-/// </summary>
 public class ArenaEvents : MonoBehaviour
 {
     public const string ProjectileFired = "ProjectileFired";
@@ -35,26 +16,32 @@ public class ArenaEvents : MonoBehaviour
     public PositionSyncClient positionClient;
 
     [Header("Teclas")]
-    public Key teclaDisparo = Key.Space;
-    public Key teclaEscudo = Key.E;
+    [FormerlySerializedAs("teclaDisparo")]
+    public Key fireKey = Key.Space;
+    [FormerlySerializedAs("teclaEscudo")]
+    public Key shieldKey = Key.E;
 
     [Header("Proyectil")]
-    public float velocidadProyectil = 12f;
-    public float vidaProyectil = 2f;
+    [FormerlySerializedAs("velocidadProyectil")]
+    public float projectileSpeed = 12f;
+    [FormerlySerializedAs("vidaProyectil")]
+    public float projectileLifetime = 2f;
 
     [Tooltip("Distancia a la que el proyectil cuenta como impacto. Generoso a " +
              "proposito: se apunta a la ultima posicion conocida del otro, que " +
              "tiene hasta dt de retraso.")]
-    public float radioImpacto = 1.5f;
+    [FormerlySerializedAs("radioImpacto")]
+    public float hitRadius = 1.5f;
 
     [Header("Duraciones")]
-    public float duracionEscudo = 2f;
-    public float duracionGolpe = 0.6f;
+    [FormerlySerializedAs("duracionEscudo")]
+    public float shieldDuration = 2f;
+    [FormerlySerializedAs("duracionGolpe")]
+    public float hitDuration = 0.6f;
 
-    string _ultimo = "sin eventos todavia";
+    string _lastEvent = "sin eventos todavia";
 
-    /// <summary>Capsulas con un golpe en curso, para no superponer dos.</summary>
-    readonly HashSet<Transform> _golpeados = new HashSet<Transform>();
+    readonly HashSet<Transform> _beingHit = new HashSet<Transform>();
 
     void Awake()
     {
@@ -64,85 +51,70 @@ public class ArenaEvents : MonoBehaviour
 
     void OnEnable()
     {
-        if (eventClient != null) eventClient.OnEventReceived += Reproducir;
+        if (eventClient != null) eventClient.OnEventReceived += PlayReaction;
     }
 
     void OnDisable()
     {
-        if (eventClient != null) eventClient.OnEventReceived -= Reproducir;
+        if (eventClient != null) eventClient.OnEventReceived -= PlayReaction;
     }
-
-    // ---------- Entrada ----------
 
     void Update()
     {
         var kb = Keyboard.current;
         if (kb == null || eventClient == null) return;
 
-        Transform yo = positionClient != null ? positionClient.LocalPlayer : null;
-        if (yo == null) return;
+        Transform self = positionClient != null ? positionClient.LocalPlayer : null;
+        if (self == null) return;
 
-        if (kb[teclaDisparo].wasPressedThisFrame)
+        if (kb[fireKey].wasPressedThisFrame)
         {
-            eventClient.Enviar(ProjectileFired, yo.position, DireccionDeDisparo(yo));
+            eventClient.Send(ProjectileFired, self.position, ShotDirection(self));
         }
-        else if (kb[teclaEscudo].wasPressedThisFrame)
+        else if (kb[shieldKey].wasPressedThisFrame)
         {
-            // El escudo recae sobre quien lo levanta.
-            eventClient.Enviar(ShieldRaised, yo.position, objetivo: eventClient.MiId);
+            eventClient.Send(ShieldRaised, self.position, targetId: eventClient.MyId);
         }
     }
 
-    /// <summary>
-    /// El proyectil sale hacia el otro jugador si se sabe donde esta; si no,
-    /// hacia donde mira la capsula.
-    /// </summary>
-    Vector3 DireccionDeDisparo(Transform yo)
+    Vector3 ShotDirection(Transform self)
     {
         if (positionClient != null && positionClient.RemotePlayer != null)
         {
-            Vector3 d = positionClient.RemotePlayer.position - yo.position;
+            Vector3 d = positionClient.RemotePlayer.position - self.position;
             d.y = 0f;
             if (d.sqrMagnitude > 0.01f) return d.normalized;
         }
-        return yo.forward;
+        return self.forward;
     }
 
-    // ---------- Reacciones ----------
-
-    void Reproducir(GameEvent e)
+    void PlayReaction(GameEvent e)
     {
         if (positionClient == null) return;
 
-        Vector3 donde = new Vector3(e.payload.x, e.payload.y, e.payload.z);
+        Vector3 origin = new Vector3(e.payload.x, e.payload.y, e.payload.z);
 
-        // Sobre quien recae el evento. Si no viene indicado, sobre quien lo envia.
-        string objetivo = string.IsNullOrEmpty(e.payload.target) ? e.player_id : e.payload.target;
-        Transform sobreQuien = positionClient.CapsulaDe(objetivo);
+        string targetId = string.IsNullOrEmpty(e.payload.target) ? e.player_id : e.payload.target;
+        Transform affected = positionClient.CapsuleOf(targetId);
 
         switch (e.type)
         {
             case ProjectileFired:
-                // Solo el proyectil de quien disparo decide si hubo impacto.
-                bool esMio = eventClient != null && e.player_id == eventClient.MiId;
-                StartCoroutine(Proyectil(donde,
-                    new Vector3(e.payload.dx, e.payload.dy, e.payload.dz), esMio));
+                bool isMine = eventClient != null && e.player_id == eventClient.MyId;
+                StartCoroutine(ProjectileRoutine(origin,
+                    new Vector3(e.payload.dx, e.payload.dy, e.payload.dz), isMine));
                 break;
 
             case ShieldRaised:
-                if (sobreQuien != null) StartCoroutine(Escudo(sobreQuien));
+                if (affected != null) StartCoroutine(ShieldRoutine(affected));
                 break;
 
             case PlayerHit:
-                // Si ya hay un golpe en curso sobre esa capsula no se lanza
-                // otro: el segundo tomaria como color original el que dejo el
-                // primero a medias y la capsula se quedaria blanca.
-                if (sobreQuien != null && !_golpeados.Contains(sobreQuien))
-                    StartCoroutine(Golpe(sobreQuien));
+                if (affected != null && !_beingHit.Contains(affected))
+                    StartCoroutine(HitRoutine(affected));
                 break;
 
-            case ExperimentRunner.TipoEventoC:
-                // Evento de medicion del experimento C: no tiene reaccion.
+            case ExperimentRunner.EventTypeC:
                 break;
 
             default:
@@ -150,38 +122,33 @@ public class ArenaEvents : MonoBehaviour
                 break;
         }
 
-        _ultimo = $"seq {e.seq}  {e.type}  de {e.player_id}";
+        _lastEvent = $"seq {e.seq}  {e.type}  de {e.player_id}";
     }
 
-    /// <param name="autoritativo">
-    /// Cierto solo en la instancia que disparo. Esa es la unica que decide si
-    /// hubo impacto y emite el PlayerHit; en la otra el proyectil es decorado.
-    /// Si ambas lo decidieran, el mismo golpe se registraria dos veces.
-    /// </param>
-    IEnumerator Proyectil(Vector3 desde, Vector3 direccion, bool autoritativo)
+    IEnumerator ProjectileRoutine(Vector3 since, Vector3 direction, bool authoritative)
     {
-        if (direccion.sqrMagnitude < 0.01f) direccion = Vector3.forward;
-        direccion.Normalize();
+        if (direction.sqrMagnitude < 0.01f) direction = Vector3.forward;
+        direction.Normalize();
 
-        var bola = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        bola.name = "Proyectil";
-        bola.transform.localScale = Vector3.one * 0.35f;
-        bola.transform.position = desde + direccion * 0.8f;
-        Destroy(bola.GetComponent<Collider>());
-        Pintar(bola, new Color(1f, 0.85f, 0.2f), false);
+        var ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        ball.name = "Proyectil";
+        ball.transform.localScale = Vector3.one * 0.35f;
+        ball.transform.position = since + direction * 0.8f;
+        Destroy(ball.GetComponent<Collider>());
+        Paint(ball, new Color(1f, 0.85f, 0.2f), false);
 
-        string victimaId = positionClient.remotePlayerId;
-        Transform victima = positionClient.RemotePlayer;
+        string victimId = positionClient.remotePlayerId;
+        Transform victim = positionClient.RemotePlayer;
 
         float t = 0f;
-        while (t < vidaProyectil && bola != null)
+        while (t < projectileLifetime && ball != null)
         {
-            bola.transform.position += direccion * (velocidadProyectil * Time.deltaTime);
+            ball.transform.position += direction * (projectileSpeed * Time.deltaTime);
 
-            if (autoritativo && victima != null &&
-                Vector3.Distance(bola.transform.position, victima.position) < radioImpacto)
+            if (authoritative && victim != null &&
+                Vector3.Distance(ball.transform.position, victim.position) < hitRadius)
             {
-                eventClient.Enviar(PlayerHit, victima.position, objetivo: victimaId);
+                eventClient.Send(PlayerHit, victim.position, targetId: victimId);
                 break;
             }
 
@@ -189,64 +156,57 @@ public class ArenaEvents : MonoBehaviour
             yield return null;
         }
 
-        if (bola != null) Destroy(bola);
+        if (ball != null) Destroy(ball);
     }
 
-    IEnumerator Escudo(Transform quien)
+    IEnumerator ShieldRoutine(Transform subject)
     {
-        var esfera = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        esfera.name = "Escudo";
-        esfera.transform.localScale = Vector3.one * 2.4f;
-        Destroy(esfera.GetComponent<Collider>());
-        Pintar(esfera, new Color(0.3f, 0.85f, 1f, 0.3f), true);
+        var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        sphere.name = "Escudo";
+        sphere.transform.localScale = Vector3.one * 2.4f;
+        Destroy(sphere.GetComponent<Collider>());
+        Paint(sphere, new Color(0.3f, 0.85f, 1f, 0.3f), true);
 
         float t = 0f;
-        while (t < duracionEscudo && esfera != null)
+        while (t < shieldDuration && sphere != null)
         {
-            // Sigue a la capsula aunque el jugador se mueva mientras dura.
-            if (quien != null) esfera.transform.position = quien.position;
-            esfera.transform.Rotate(Vector3.up, 90f * Time.deltaTime);
+            if (subject != null) sphere.transform.position = subject.position;
+            sphere.transform.Rotate(Vector3.up, 90f * Time.deltaTime);
             t += Time.deltaTime;
             yield return null;
         }
 
-        if (esfera != null) Destroy(esfera);
+        if (sphere != null) Destroy(sphere);
     }
 
-    IEnumerator Golpe(Transform quien)
+    IEnumerator HitRoutine(Transform subject)
     {
-        _golpeados.Add(quien);
+        _beingHit.Add(subject);
 
-        var render = quien.GetComponent<Renderer>();
+        var render = subject.GetComponent<Renderer>();
         Color original = default;
-        bool tieneColor = render != null && render.material.HasProperty("_BaseColor");
-        if (tieneColor) original = render.material.GetColor("_BaseColor");
+        bool hasColor = render != null && render.material.HasProperty("_BaseColor");
+        if (hasColor) original = render.material.GetColor("_BaseColor");
 
-        Vector3 escalaOriginal = quien.localScale;
+        Vector3 originalScale = subject.localScale;
         float t = 0f;
 
-        while (t < duracionGolpe && quien != null)
+        while (t < hitDuration && subject != null)
         {
-            // Parpadeo rapido entre el color propio y el blanco, y un encogido
-            // que vuelve solo. Se nota aunque la capsula este lejos.
             float p = Mathf.PingPong(t * 10f, 1f);
-            if (tieneColor) render.material.SetColor("_BaseColor", Color.Lerp(original, Color.white, p));
-            quien.localScale = escalaOriginal * (1f - 0.25f * Mathf.Sin(t / duracionGolpe * Mathf.PI));
+            if (hasColor) render.material.SetColor("_BaseColor", Color.Lerp(original, Color.white, p));
+            subject.localScale = originalScale * (1f - 0.25f * Mathf.Sin(t / hitDuration * Mathf.PI));
             t += Time.deltaTime;
             yield return null;
         }
 
-        if (quien != null) quien.localScale = escalaOriginal;
-        if (tieneColor) render.material.SetColor("_BaseColor", original);
+        if (subject != null) subject.localScale = originalScale;
+        if (hasColor) render.material.SetColor("_BaseColor", original);
 
-        _golpeados.Remove(quien);
+        _beingHit.Remove(subject);
     }
 
-    /// <summary>
-    /// Crea un material para URP. La transparencia necesita configurarse a
-    /// mano, porque el modo translucido no es el de por defecto del shader.
-    /// </summary>
-    static void Pintar(GameObject obj, Color color, bool translucido)
+    static void Paint(GameObject obj, Color color, bool translucent)
     {
         var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
         if (shader == null) return;
@@ -255,7 +215,7 @@ public class ArenaEvents : MonoBehaviour
         if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
         if (mat.HasProperty("_Color")) mat.SetColor("_Color", color);
 
-        if (translucido)
+        if (translucent)
         {
             mat.SetFloat("_Surface", 1f);
             mat.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
@@ -268,32 +228,24 @@ public class ArenaEvents : MonoBehaviour
         obj.GetComponent<Renderer>().material = mat;
     }
 
-    // ---------- Indicador en pantalla ----------
-
     void OnGUI()
     {
         if (eventClient == null) return;
 
-        int size = Mathf.Max(13, Mathf.RoundToInt(Screen.height * 0.022f));
+        int size = Hud.FontSize(0.022f, 13);
         float line = size * 1.4f;
-        float alto = line * 2 + size;
-        float y = Screen.height - alto - size * 4.5f;
+        float panelHeight = line * 2 + size;
+        float y = Screen.height - panelHeight - size * 4.5f;
 
-        GUI.color = new Color(0f, 0f, 0f, 0.6f);
-        GUI.DrawTexture(new Rect(0, y, Screen.width, alto), Texture2D.whiteTexture);
-        GUI.color = Color.white;
+        Hud.Backdrop(new Rect(0, y, Screen.width, panelHeight), 0.6f);
 
-        var estilo = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = size,
-            normal = { textColor = new Color(0.7f, 1f, 0.7f) }
-        };
+        var labelStyle = Hud.Label(size, new Color(0.7f, 1f, 0.7f));
 
         GUI.Label(new Rect(size, y + size * 0.3f, Screen.width, line),
             "ARENA   Espacio = disparar   E = escudo   " +
-            "(el impacto del proyectil genera PlayerHit sobre el alcanzado)", estilo);
+            "(el impacto del proyectil genera PlayerHit sobre el alcanzado)", labelStyle);
         GUI.Label(new Rect(size, y + size * 0.3f + line, Screen.width, line),
             $"enviados: {eventClient.SentCount}   recibidos: {eventClient.ReceivedCount}   " +
-            $"last_seq: {eventClient.LastSeq}   |   ultimo: {_ultimo}", estilo);
+            $"last_seq: {eventClient.LastSeq}   |   ultimo: {_lastEvent}", labelStyle);
     }
 }
