@@ -14,19 +14,10 @@ Sincronización entre dos instancias de Unity por **sondeo periódico (polling)*
 | `event-service/` | Servicio de eventos de la Parte 2 (Flask + Docker) |
 | `unity-client/` | Proyecto Unity con los clientes de las partes 1 y 2 |
 | `unity-client/MONTAJE.md` | Cómo está armada la escena y cómo se corren los experimentos |
-| `resultados/` | Los nueve CSV de los experimentos A, B y C |
-| `informe/` | El informe en PDF, sus figuras y el script que las genera a partir de los CSV |
-| `videos/` | Los dos videos de funcionamiento |
 
 El servicio de referencia de la Parte 1 **no está aquí**: es el del profesor, se clona aparte (ver abajo).
 
-### Los tres entregables
-
-| Entregable | Dónde está |
-|---|---|
-| Repositorio con el proyecto y el servicio | este repositorio; instrucciones de ejecución más abajo |
-| Videos de funcionamiento (< 3 min cada uno) | `videos/` — 0:20 la Parte 1, 0:29 la Parte 2 |
-| Informe | `informe/informe.pdf` |
+El informe, los videos y los CSV de los experimentos **se entregan aparte**, no en este repositorio.
 
 ## Requisitos
 
@@ -109,15 +100,8 @@ nada en el Inspector entre una y otra.
 ### 5. Experimentos
 
 Con las dos instancias corriendo, las teclas de función lanzan cada experimento y escriben
-un CSV en `resultados/`. El procedimiento completo está en
-[`unity-client/MONTAJE.md`](unity-client/MONTAJE.md).
-
-### 6. Regenerar las figuras del informe
-
-```bash
-pip install matplotlib
-python informe/generar_figuras.py   # figuras a partir de los CSV de resultados/
-```
+un CSV en una carpeta `resultados/` que se crea en la raíz. El procedimiento completo está
+en [`unity-client/MONTAJE.md`](unity-client/MONTAJE.md).
 
 ## Decisiones de diseño del servicio de eventos
 
