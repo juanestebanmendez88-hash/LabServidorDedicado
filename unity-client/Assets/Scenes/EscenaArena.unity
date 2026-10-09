@@ -473,7 +473,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ExperimentRunner
   client: {fileID: 369733793}
   eventClient: {fileID: 0}
-  outputFolder: C:\Users\usuario\Documents\Unity\LabServidorDedicado\resultados
+  outputFolder:
   samplesA: 100
   valuesB: 20
   valuesC: 20

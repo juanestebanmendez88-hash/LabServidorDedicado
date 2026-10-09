@@ -115,7 +115,6 @@ cuantización por fotograma no contamine los tiempos.
 
 Los CSV salen en `resultados/`, con una fila por muestra y una cabecera que resume la corrida.
 
-> El campo `Output Folder` del `ExperimentRunner` trae una ruta absoluta de la máquina donde
-> se desarrolló. **Al clonar el repositorio en otro equipo hay que apuntarla a la carpeta
-> `resultados/` propia.** Dejarla vacía no sirve de mucho: en ese caso los CSV van a
-> `persistentDataPath`, que en Windows queda enterrado en `AppData\LocalLow`.
+El campo `Output Folder` del `ExperimentRunner` se deja **vacío**: en ese caso los CSV van a
+la carpeta `resultados/` de la raíz del repositorio, se clone donde se clone. Solo hay que
+llenarlo para escribir en otro sitio.

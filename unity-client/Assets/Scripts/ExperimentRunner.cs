@@ -35,10 +35,9 @@ public class ExperimentRunner : MonoBehaviour
     public EventClient eventClient;
 
     [Header("Salida")]
-    [Tooltip("Carpeta donde se guardan los CSV. Al clonar el repositorio en otro equipo " +
-             "hay que cambiarla. Si se deja vacia se usa persistentDataPath, que en " +
-             "Windows cae en AppData\\LocalLow.")]
-    public string outputFolder = @"C:\Users\usuario\Documents\Unity\LabServidorDedicado\resultados";
+    [Tooltip("Carpeta donde se guardan los CSV. Vacia significa 'resultados/' en la raiz " +
+             "del repositorio, que es lo que se quiere al clonarlo en cualquier equipo.")]
+    public string outputFolder = "";
 
     [Header("Parametros")]
     [Tooltip("Muestras de RTT del experimento A. La guia pide 100.")]
@@ -454,8 +453,12 @@ public class ExperimentRunner : MonoBehaviour
 
     string Write(string fileName, string content)
     {
+        // Application.dataPath es <repo>/unity-client/Assets en el editor, que es donde
+        // se corren los experimentos, asi que dos niveles arriba esta la raiz del
+        // repositorio. Se resuelve en tiempo de ejecucion para no fijar en el proyecto
+        // una ruta absoluta de la maquina donde se desarrollo.
         string folder = string.IsNullOrWhiteSpace(outputFolder)
-            ? Application.persistentDataPath
+            ? Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "resultados"))
             : outputFolder;
 
         try

@@ -14,10 +14,9 @@ Sincronización entre dos instancias de Unity por **sondeo periódico (polling)*
 | `event-service/` | Servicio de eventos de la Parte 2 (Flask + Docker) |
 | `unity-client/` | Proyecto Unity con los clientes de las partes 1 y 2 |
 | `unity-client/MONTAJE.md` | Cómo está armada la escena y cómo se corren los experimentos |
-| `resultados/` | CSV de los experimentos A, B y C |
-| `informe/` | Informe del laboratorio en `.md`, `.pdf` y `.docx`, con las figuras y los scripts que los generan |
+| `resultados/` | Los nueve CSV de los experimentos A, B y C |
+| `informe/` | El informe en PDF, sus figuras y el script que las genera a partir de los CSV |
 | `videos/` | Los dos videos de funcionamiento |
-| `lanzadores/` | Archivos `.bat` para abrir dos instancias del juego compilado |
 
 El servicio de referencia de la Parte 1 **no está aquí**: es el del profesor, se clona aparte (ver abajo).
 
@@ -27,7 +26,7 @@ El servicio de referencia de la Parte 1 **no está aquí**: es el del profesor, 
 |---|---|
 | Repositorio con el proyecto y el servicio | este repositorio; instrucciones de ejecución más abajo |
 | Videos de funcionamiento (< 3 min cada uno) | `videos/` — 0:20 la Parte 1, 0:29 la Parte 2 |
-| Informe | `informe/informe.pdf` (para leer) y `informe/informe.docx` (para editar) |
+| Informe | `informe/informe.pdf` |
 
 ## Requisitos
 
@@ -94,9 +93,9 @@ nada en el Inspector entre una y otra.
 
 > **Por qué Multiplayer Play Mode y no dos ejecutables.** La guía admite las dos vías. En el
 > equipo donde se desarrolló, Smart App Control bloquea los binarios sin firma digital, y un
-> build local nunca la tiene, así que el `.exe` no llegaba a arrancar. Los `.bat` de
-> `lanzadores/` quedan para quien sí pueda ejecutar un build: pasan `--player`, `--remote`,
-> `--game` y `--dt` como argumentos de línea de comandos.
+> build local nunca la tiene, así que el `.exe` no llegaba a arrancar. Para quien sí pueda
+> ejecutar un build, los clientes aceptan `--player`, `--remote`, `--game` y `--dt` como
+> argumentos de línea de comandos.
 
 ### 4. Controles
 
@@ -113,13 +112,11 @@ Con las dos instancias corriendo, las teclas de función lanzan cada experimento
 un CSV en `resultados/`. El procedimiento completo está en
 [`unity-client/MONTAJE.md`](unity-client/MONTAJE.md).
 
-### 6. Regenerar el informe
+### 6. Regenerar las figuras del informe
 
 ```bash
-pip install matplotlib markdown python-docx
+pip install matplotlib
 python informe/generar_figuras.py   # figuras a partir de los CSV de resultados/
-python informe/generar_pdf.py       # informe.md -> informe.pdf
-python informe/generar_word.py      # informe.md -> informe.docx
 ```
 
 ## Decisiones de diseño del servicio de eventos

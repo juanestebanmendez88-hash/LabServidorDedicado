@@ -39,5 +39,18 @@ crashlytics-build.properties
 Thumbs.db
 desktop.ini
 
-# Intermedio de la conversion a PDF; el .md y el .pdf si se versionan.
+# ---------- Material de trabajo ----------
+# El repositorio contiene solo los tres entregables que pide la guia: el
+# proyecto y el servicio con sus instrucciones, los videos y el informe. Lo que
+# sigue es material de trabajo que se conserva en local pero no se publica.
 informe/informe.html
+informe/informe.md
+informe/informe.docx
+informe/generar_pdf.py
+informe/generar_word.py
+lanzadores/
+resultados/README.md
+videos/README.md
+
+# Archivos de bloqueo que Word deja mientras tiene un documento abierto.
+~$*

@@ -932,11 +932,11 @@ PlayerSettings:
   activeInputHandler: 1
   windowsGamepadBackendHint: 0
   enableDirectStorage: 0
-  cloudProjectId: 583492e2-730a-40b3-8808-16aa5f8b617a
+  cloudProjectId:
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
   projectName: LaboratorioServidorDedicado
-  organizationId: usuario
+  organizationId:
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
   hmiLoadingImage: {fileID: 0}
