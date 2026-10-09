@@ -38,3 +38,6 @@ crashlytics-build.properties
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Intermedio de la conversion a PDF; el .md y el .pdf si se versionan.
+informe/informe.html
