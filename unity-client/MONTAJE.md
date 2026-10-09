@@ -1,92 +1,121 @@
-# Scripts del cliente Unity
+# Montaje del cliente Unity
 
-Estos archivos se copian a `unity-client/Assets/Scripts/` una vez creado el proyecto.
-Están aquí aparte porque Unity Hub exige una carpeta vacía para crear el proyecto.
+Cómo está armado el proyecto y cómo se reproducen los experimentos. La escena ya viene
+montada en `Assets/Scenes/EscenaArena.unity`; esto documenta qué hay dentro y por qué.
+
+## Scripts
 
 | Archivo | Qué hace |
 |---|---|
 | `PositionData.cs` | Cuerpo JSON del servicio de referencia (`posX`, `posY`, `posZ`) |
-| `PositionSyncClient.cs` | Cliente de la Parte 1: publica y consulta posiciones |
-| `PlayerController.cs` | Movimiento del jugador local con WASD |
-| `ExperimentRunner.cs` | Experimentos A y B, con salida a CSV |
+| `PositionSyncClient.cs` | **Parte 1.** Publica la posición propia y consulta la remota, cada una en su corrutina |
+| `PlayerController.cs` | Movimiento del jugador local con WASD, relativo a la cámara |
+| `EventDtos.cs` | Cuerpos JSON del servicio de eventos |
+| `EventClient.cs` | **Parte 2.** Envía eventos por una cola y consulta los nuevos con `since` |
+| `ArenaEvents.cs` | **Parte 2.** Traduce teclas en eventos y eventos en reacciones visibles |
+| `ExperimentRunner.cs` | Experimentos A, B y C, con salida a CSV |
 
-## Montaje en Unity
+## Escena
 
-**1. Crear el proyecto.** Unity Hub → New project → plantilla **Universal 3D** → nombre `unity-client` → ubicación `LabServidorDedicado`.
-
-**2. Permitir HTTP.** `Edit → Project Settings → Player → Other Settings → Allow downloads over HTTP` = **Always allowed**. Sin esto Unity bloquea todas las peticiones y nada funciona.
-
-No hace falta tocar *Active Input Handling*: los scripts usan el Input System nuevo, que es el que trae la plantilla.
-
-**3. Copiar los scripts** a `Assets/Scripts/`.
-
-**4. Armar la escena** (menú `GameObject`):
-
-| Objeto | Cómo se crea | Ajustes |
+| Objeto | Qué es | Ajustes |
 |---|---|---|
 | Piso | `3D Object → Plane` | — |
-| `LocalPlayer` | `3D Object → Capsule` | Position Y = 1 |
-| `RemotePlayer` | `3D Object → Capsule` | Position X = 2, Y = 1, material rojo |
-| `NetworkManager` | `Create Empty` | lleva los dos scripts de red |
+| `LocalPlayer` | Cápsula del **jugador 1** | Y = 1, material rojo, lleva `PlayerController` |
+| `RemotePlayer` | Cápsula del **jugador 2** | Y = 1, material azul, lleva `PlayerController` |
+| `NetworkManager` | Objeto vacío | lleva `PositionSyncClient`, `EventClient`, `ArenaEvents` y `ExperimentRunner` |
+| Cámara | — | colocada en ángulo, como un juego de pelea |
 
-**5. Asignar los componentes.**
+Los nombres `LocalPlayer` y `RemotePlayer` son históricos: **las dos cápsulas se declaran
+por número de jugador**, no por papel. En el Inspector de `PositionSyncClient` se arrastran
+a los campos `Jugador 1` y `Jugador 2`, y es el script el que decide cuál controla cada
+ventana. Hacerlo al revés —declararlas como «local» y «remota»— fue un error de la primera
+versión: esos papeles son relativos a cada instancia, así que la misma cápsula se llamaba
+`player1` en una ventana y `player2` en la otra.
 
-En **LocalPlayer**: `Add Component → Player Controller`.
+Los dos objetos llevan `PlayerController`, pero el script lo **desactiva** en la cápsula que
+no corresponde a esta ventana, de modo que cada instancia solo mueve la suya.
 
-En **NetworkManager**: `Add Component → Position Sync Client` y `Add Component → Experiment Runner`.
+## Ajustes del proyecto
 
-**6. Llenar el Inspector de NetworkManager.**
+| Ajuste | Dónde | Valor | Por qué |
+|---|---|---|---|
+| Allow downloads over HTTP | *Player → Other Settings* | **Always allowed** | Unity bloquea HTTP sin cifrar y ningún servicio respondería |
+| Run In Background | *Player → Resolution and Presentation* | **activado** | si no, la ventana sin foco deja de sondear y se congela la otra |
 
-En *Position Sync Client*:
+No hace falta tocar *Active Input Handling*: los scripts usan el Input System nuevo, que es
+el que trae la plantilla Universal 3D.
 
-| Campo | Instancia A (build) | Instancia B (editor) |
-|---|---|---|
-| Server Url | `http://localhost:5005` | `http://localhost:5005` |
-| Game Id | `g1` | `g1` |
-| Local Player Id | `p1` | `p2` |
-| Remote Player Id | `p2` | `p1` |
-| Delta Time Ms | `200` | `200` |
-| Local Player | arrastrar **LocalPlayer** | igual |
-| Remote Player | arrastrar **RemotePlayer** | igual |
+## Inspector de `NetworkManager`
 
-Los identificadores van **cruzados**: lo que para una instancia es local, para la otra es remoto.
+En **Position Sync Client**:
 
-En *Experiment Runner*, arrastrar el propio **NetworkManager** al campo `Client`.
+| Campo | Valor |
+|---|---|
+| Server Url | `http://localhost:5005` |
+| Game Id | `g1` |
+| Local Player Id | `p1` |
+| Remote Player Id | `p2` |
+| Delta Time Ms | `200` (se cambia para cada experimento) |
+| Jugador 1 / Jugador 2 | arrastrar `LocalPlayer` y `RemotePlayer` |
+| Separar Al Aparecer | activado, separación `4` |
 
-**7. Guardar la escena** como `Assets/Scenes/Main.unity`.
+En **Event Client**: `Server Url` = `http://localhost:5006`, `Heredar Delta` **activado**
+(así un solo Δt gobierna las dos partes) y `Position Client` apuntando al propio
+`NetworkManager`.
+
+En **Arena Events** y **Experiment Runner**: arrastrar el propio `NetworkManager` a los
+campos de referencia.
+
+**Los identificadores no se tocan entre una instancia y otra.** Cada ventana deduce su papel
+del argumento `-name PlayerN` que Multiplayer Play Mode pasa a cada editor: el principal
+queda como `p1` y el jugador virtual como `p2`. Lo que no venga por argumento conserva el
+valor del Inspector.
 
 ## Ejecutar las dos instancias
 
-1. `File → Build Settings → Add Open Scenes`, y compilar a `LabServidorDedicado/build-p1/`. Ese build queda con `p1`.
-2. Volver al editor y cambiar en el Inspector `Local Player Id` a `p2` y `Remote Player Id` a `p1`.
-3. Abrir el build y darle Play al editor.
+1. Levantar los dos servicios (ver el README de la raíz).
+2. *Window → Multiplayer → Multiplayer Play Mode*, marcar **Player 2** como activo.
+3. Play. Unity abre una segunda ventana, que es un proceso de editor independiente.
 
-Al principio cada instancia muestra `esperando primera posicion (404)` hasta que la otra publica. Es el comportamiento correcto: el 404 no detiene el sondeo.
+Cada ventana rotula arriba a qué jugador controla. Al principio muestran
+`esperando primera posicion (404)` hasta que la otra publica: es el comportamiento correcto,
+el 404 no detiene el sondeo.
 
-## Experimentos
+> Si Multiplayer Play Mode falla al arrancar con un error sobre `Library/VP/...`, cerrar
+> Unity y borrar la carpeta `unity-client/Library/VP/`. Unity la regenera.
 
-Con las dos instancias corriendo:
+## Controles
 
 | Tecla | Qué hace |
 |---|---|
-| **F1** | Experimento A: 100 RTT con el Δt configurado |
-| **F3** | Experimento B: deja esta instancia observando |
-| **F2** | Experimento B: emite `posX` = 1…20, uno cada 20 ms |
+| **WASD** | Mueve la cápsula propia |
+| **Espacio** | `ProjectileFired`: una esfera sale hacia el otro jugador |
+| **E** | `ShieldRaised`: escudo esférico translúcido durante 2 s |
+| — | `PlayerHit` se emite solo cuando el proyectil alcanza a alguien, y lo evalúa **solo** la instancia que disparó |
 
-**Experimento A:** poner `Delta Time Ms` en 50, pulsar F1, esperar. Repetir con 200 y 1000.
+## Experimentos
 
-**Experimento B:** pulsar **F3 en la instancia que observa** y enseguida **F2 en la que emite**. Repetir con los tres Δt.
+| Tecla | Experimento | En qué instancia |
+|---|---|---|
+| **F1** | A: 100 tiempos de ida y vuelta | en la que mide |
+| **F2** | B: emite `posX` = 1…20, uno cada 20 ms | la emisora |
+| **F3** | B: observa cuántos valores distintos llegan | la observadora |
+| **F4** | C: emite 20 eventos, uno cada 20 ms | la emisora |
+| **F5** | C: observa cuántos eventos llegan | la observadora |
 
-Los CSV salen en `LabServidorDedicado/resultados/`.
+Para B y C: pulsar **primero F3 (o F5) en la que observa** y enseguida **F2 (o F4) en la que
+emite**. La observadora espera hasta 60 s a que empiece la emisión, de sobra para cambiar de
+ventana, y termina sola tras un silencio proporcional a Δt.
 
-## Valores de referencia
+Cada experimento se repite con `Delta Time Ms` en **50**, **200** y **1000**. El valor se
+puede cambiar con el juego en marcha: el ciclo lo relee en cada vuelta.
 
-El experimento B se simuló contra el servicio real antes de integrarlo con Unity:
+Durante la medición el script desactiva el VSync y sube `targetFrameRate` a 500, para que la
+cuantización por fotograma no contamine los tiempos.
 
-| Δt | Valores distintos observados (de 20) |
-|---|---|
-| 50 ms | 11 |
-| 200 ms | 5 |
-| 1000 ms | 1 |
+Los CSV salen en `resultados/`, con una fila por muestra y una cabecera que resume la corrida.
 
-Desde Unity los números serán parecidos pero no idénticos, porque las corrutinas añaden la cuantización por fotograma. Si salen muy distintos, revisar que el VSync esté desactivado durante la medición.
+> El campo `Output Folder` del `ExperimentRunner` trae una ruta absoluta de la máquina donde
+> se desarrolló. **Al clonar el repositorio en otro equipo hay que apuntarla a la carpeta
+> `resultados/` propia.** Dejarla vacía no sirve de mucho: en ese caso los CSV van a
+> `persistentDataPath`, que en Windows queda enterrado en `AppData\LocalLow`.

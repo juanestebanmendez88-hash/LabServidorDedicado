@@ -15,10 +15,19 @@ Sincronización entre dos instancias de Unity por **sondeo periódico (polling)*
 | `unity-client/` | Proyecto Unity con los clientes de las partes 1 y 2 |
 | `unity-client/MONTAJE.md` | Cómo está armada la escena y cómo se corren los experimentos |
 | `resultados/` | CSV de los experimentos A, B y C |
-| `informe/` | Informe del laboratorio |
+| `informe/` | Informe del laboratorio en `.md`, `.pdf` y `.docx`, con las figuras y los scripts que los generan |
+| `videos/` | Los dos videos de funcionamiento |
 | `lanzadores/` | Archivos `.bat` para abrir dos instancias del juego compilado |
 
 El servicio de referencia de la Parte 1 **no está aquí**: es el del profesor, se clona aparte (ver abajo).
+
+### Los tres entregables
+
+| Entregable | Dónde está |
+|---|---|
+| Repositorio con el proyecto y el servicio | este repositorio; instrucciones de ejecución más abajo |
+| Videos de funcionamiento (< 3 min cada uno) | `videos/` — 0:20 la Parte 1, 0:29 la Parte 2 |
+| Informe | `informe/informe.pdf` (para leer) y `informe/informe.docx` (para editar) |
 
 ## Requisitos
 
@@ -74,10 +83,44 @@ Para detenerlos: `docker compose down` en cada carpeta.
 
 ### 3. Cliente Unity
 
-1. Abrir `unity-client/` con Unity 6000.x.
+1. Abrir `unity-client/` con Unity 6000.x y cargar la escena `Assets/Scenes/EscenaArena.unity`.
 2. Activar **Allow downloads over HTTP** en *Player Settings → Other Settings*, porque Unity bloquea HTTP sin cifrar por defecto.
-3. Configurar en el Inspector: URL de los servicios, `game_id`, `player_id` local y remoto, y Δt.
-4. Para las dos instancias: compilar un build con `player_id = p1` / remoto `p2`, y dejar el editor con `p2` / remoto `p1`.
+3. Activar **Run In Background** en *Player Settings → Resolution and Presentation*, para que la ventana que pierde el foco siga sondeando.
+4. Levantar las dos instancias con **Multiplayer Play Mode** (*Window → Multiplayer → Multiplayer Play Mode*): marcar **Player 2** como activo y darle Play. Unity abre una segunda ventana que es un proceso de editor independiente.
+
+Cada instancia deduce su papel del argumento `-name PlayerN` que Multiplayer Play Mode le
+pasa: el editor principal queda como `p1` y el jugador virtual como `p2`. No hay que cambiar
+nada en el Inspector entre una y otra.
+
+> **Por qué Multiplayer Play Mode y no dos ejecutables.** La guía admite las dos vías. En el
+> equipo donde se desarrolló, Smart App Control bloquea los binarios sin firma digital, y un
+> build local nunca la tiene, así que el `.exe` no llegaba a arrancar. Los `.bat` de
+> `lanzadores/` quedan para quien sí pueda ejecutar un build: pasan `--player`, `--remote`,
+> `--game` y `--dt` como argumentos de línea de comandos.
+
+### 4. Controles
+
+| Tecla | Qué hace |
+|---|---|
+| **WASD** | Mover la cápsula propia (Parte 1) |
+| **Espacio** | `ProjectileFired`: dispara una esfera hacia el otro jugador |
+| **E** | `ShieldRaised`: levanta un escudo translúcido |
+| — | `PlayerHit` se emite solo, cuando el proyectil alcanza a alguien |
+
+### 5. Experimentos
+
+Con las dos instancias corriendo, las teclas de función lanzan cada experimento y escriben
+un CSV en `resultados/`. El procedimiento completo está en
+[`unity-client/MONTAJE.md`](unity-client/MONTAJE.md).
+
+### 6. Regenerar el informe
+
+```bash
+pip install matplotlib markdown python-docx
+python informe/generar_figuras.py   # figuras a partir de los CSV de resultados/
+python informe/generar_pdf.py       # informe.md -> informe.pdf
+python informe/generar_word.py      # informe.md -> informe.docx
+```
 
 ## Decisiones de diseño del servicio de eventos
 

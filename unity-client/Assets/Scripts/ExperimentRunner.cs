@@ -35,7 +35,9 @@ public class ExperimentRunner : MonoBehaviour
     public EventClient eventClient;
 
     [Header("Salida")]
-    [Tooltip("Carpeta donde se guardan los CSV. Si se deja vacia se usa la del proyecto.")]
+    [Tooltip("Carpeta donde se guardan los CSV. Al clonar el repositorio en otro equipo " +
+             "hay que cambiarla. Si se deja vacia se usa persistentDataPath, que en " +
+             "Windows cae en AppData\\LocalLow.")]
     public string outputFolder = @"C:\Users\usuario\Documents\Unity\LabServidorDedicado\resultados";
 
     [Header("Parametros")]
